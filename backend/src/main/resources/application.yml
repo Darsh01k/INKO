@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: inko-backend
+
+  datasource:
+    url: ${INKO_DB_URL:jdbc:postgresql://localhost:5432/inko}
+    username: ${INKO_DB_USER:inko_app}
+    password: ${INKO_DB_PASSWORD:inko_app_dev_pwd}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.inko: DEBUG
+    org.hibernate.SQL: WARN
+
+inko:
+  app:
+    jwt:
+      secret: ${INKO_JWT_SECRET:dev-only-secret-change-me-in-production-0123456789abcdef}
+      access-token-validity-minutes: 15
+      refresh-token-validity-days: 7
+    cors:
+      allowed-origins: http://localhost:5173
+    dev-mode: true
+    seed-dev-data: true
+    otp:
+      validity-minutes: 5
+      max-attempts: 5
+    storage:
+      root: ${INKO_STORAGE_ROOT:./data/storage}
+    payment:
+      provider: mock

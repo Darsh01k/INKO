@@ -1,0 +1,38 @@
+# Build outputs
+backend/target/
+frontend/dist/
+node_modules/
+frontend/node_modules/
+
+# Logs
+*.log
+
+# Environment / secrets (use .env.example)
+.env
+
+# Runtime data
+data/
+pgdata/
+*.pid
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Internal dev docs & test scripts (not needed to build/deploy)
+PROGRESS.md
+DEFERRED.md
+FUNCTIONALITY-REPORT.md
+REQUIREMENTS-COVERAGE.md
+Phase *.md
+Final Security*.md
+SmartPrint Platform*.md
+/scripts/*.mjs
+/scripts/*.bat
+be-run.log
+be-compile.log
+
+# Local-machine specifics
+HELP.md
