@@ -135,5 +135,13 @@ CREATE TRIGGER trg_qr_codes_updated_at BEFORE UPDATE ON qr_codes
 CREATE TRIGGER trg_system_settings_updated_at BEFORE UPDATE ON system_settings
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Audit logs are append-only: block UPDATE and DELETE for the application role
-REVOKE UPDATE, DELETE ON audit_logs FROM inko_app;
+-- Audit logs are append-only: block UPDATE and DELETE for the application role.
+-- Conditional: the inko_app role only exists in local/dev setups; managed hosts
+-- (e.g. Neon) use a single owner role, where the revoke is unnecessary.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'inko_app') THEN
+        EXECUTE 'REVOKE UPDATE, DELETE ON audit_logs FROM inko_app';
+    END IF;
+END
+$$;
