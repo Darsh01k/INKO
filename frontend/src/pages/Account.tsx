@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, ShieldCheck, Store, LogOut, Bell, Volume2, Moon, Globe } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, ShieldCheck, Store, LogOut, Bell, Volume2, Moon, Globe, Trash2, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { Card, Badge, Button, Separator } from '@/components/ui'
+import { apiErrorMessage } from '@/lib/api'
+import { Card, Badge, Button, Separator, Dialog, Input, Label, Alert } from '@/components/ui'
 
 function BackTo({ to }: { to: string }) {
   return <Link to={to} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft className="h-4 w-4" /> Back</Link>
@@ -51,6 +52,69 @@ const SETTINGS = [
   { key: 'language', label: 'Regional language', desc: 'English (India) default', icon: Globe, def: false },
 ]
 
+function DangerZone() {
+  const { deleteAccount, logout } = useAuth()
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault()
+    if (!password) { setError('Enter your password to confirm'); return }
+    setBusy(true); setError(null)
+    try {
+      await deleteAccount(password)
+      setOpen(false)
+      logout()
+      navigate('/login', { replace: true })
+    } catch (err) {
+      setError(apiErrorMessage(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="border-red-200 p-6">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-red-700">
+        <Trash2 className="h-4 w-4" /> Danger zone
+      </h2>
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+        Deleting your account is permanent — you'll be signed out everywhere and won't be able to log
+        back in. Your personal details are erased; past order records are kept for shop bookkeeping.
+      </p>
+      <Button variant="danger" className="mt-4" onClick={() => { setPassword(''); setError(null); setOpen(true) }}>
+        Delete my account
+      </Button>
+
+      <Dialog open={open} onClose={() => { if (!busy) setOpen(false) }} title="Delete your account?">
+        <p className="text-sm leading-relaxed text-slate-600">
+          This cannot be undone. Confirm your password to permanently delete <b>your account</b>.
+        </p>
+        {error && (
+          <div className="mt-4">
+            <Alert><span className="flex gap-2 items-center"><AlertCircle className="h-4 w-4 shrink-0" />{error}</span></Alert>
+          </div>
+        )}
+        <form onSubmit={handleDelete} className="mt-4 space-y-4" noValidate>
+          <div>
+            <Label htmlFor="deleteConfirmPassword">Your password</Label>
+            <Input id="deleteConfirmPassword" type="password" required autoFocus autoComplete="current-password"
+              value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+            <Button type="submit" variant="danger" loading={busy}>
+              <Trash2 className="h-4 w-4" /> Delete forever
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    </Card>
+  )
+}
+
 export function SettingsPage({ home }: { home: string }) {
   const [on, setOn] = useState<Record<string, boolean>>(Object.fromEntries(SETTINGS.map(s => [s.key, s.def])))
   return (
@@ -78,6 +142,7 @@ export function SettingsPage({ home }: { home: string }) {
           ))}
         </div>
       </Card>
+      <DangerZone />
     </div>
   )
 }

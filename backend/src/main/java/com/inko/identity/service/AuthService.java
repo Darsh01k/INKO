@@ -245,6 +245,30 @@ public class AuthService {
         return me(userId);
     }
 
+    /**
+     * Self-service account deletion behind a password re-check. The profile is deactivated and
+     * anonymized rather than hard-deleted: orders, complaints and payment rows reference the user
+     * without cascades and must survive for bookkeeping. Personal identifiers are scrubbed and the
+     * email/phone are freed so the same contact details can register again later.
+     */
+    @Transactional
+    public void deleteAccount(UUID userId, String password) {
+        User user = users.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("User not found"));
+        if (password == null || password.isBlank() || user.getPasswordHash() == null
+                || !encoder.matches(password, user.getPasswordHash())) {
+            throw new ApiException(ErrorCode.INVALID_CREDENTIALS, "Incorrect password");
+        }
+        refreshTokens.revokeAllForUser(userId, Instant.now());
+        user.setStatus(UserStatus.INACTIVE);
+        user.setFullName("Deleted User");
+        user.setEmail("deleted-" + userId + "@deleted.inko.local");
+        user.setPhone(null);
+        user.setPasswordHash(null);
+        users.save(user);
+        log.info("Account {} deleted via self-service (anonymized)", userId);
+    }
+
     private void requireActive(User user) {
         if (!user.isActive()) {
             boolean suspended = user.getStatus() == UserStatus.SUSPENDED;

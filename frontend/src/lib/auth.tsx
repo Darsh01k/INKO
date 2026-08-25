@@ -37,6 +37,7 @@ interface AuthContextValue {
   register: (fullName: string, email: string | undefined, phone: string | undefined, password: string, accountType?: 'CUSTOMER' | 'SHOP_OWNER') => Promise<CurrentUser>
   forgotPassword: (email: string) => Promise<string>
   resetPassword: (identifier: string, code: string, newPassword: string) => Promise<void>
+  deleteAccount: (password: string) => Promise<void>
   logout: () => void
   refreshMe: () => Promise<CurrentUser>
 }
@@ -119,6 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.post('/auth/reset-password', { identifier, code, newPassword })
   }, [])
 
+  const deleteAccount = useCallback(async (password: string) => {
+    await api.delete('/users/me', { data: { password } })
+  }, [])
+
   const logout = useCallback(() => {
     const refreshToken = tokens.refresh
     if (refreshToken) {
@@ -145,10 +150,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       forgotPassword,
       resetPassword,
+      deleteAccount,
       logout,
       refreshMe,
     }),
-    [user, isLoading, loginWithPassword, requestOtp, verifyOtp, register, forgotPassword, resetPassword, logout, refreshMe],
+    [user, isLoading, loginWithPassword, requestOtp, verifyOtp, register, forgotPassword, resetPassword, deleteAccount, logout, refreshMe],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

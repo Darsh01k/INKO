@@ -5,6 +5,7 @@ import com.inko.identity.security.AppUserDetailsService.InkoPrincipal;
 import com.inko.identity.service.AuthService;
 import com.inko.identity.web.dto.AuthDtos.UserDto;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,5 +36,13 @@ public class UserController {
         String fullName = body.get("fullName");
         if (fullName == null || fullName.isBlank()) throw ApiException.notFound("fullName is required");
         return auth.updateFullName(principal.userId(), fullName.trim());
+    }
+
+    /** Password-confirmed self-service deletion (see AuthService for semantics). */
+    @DeleteMapping("/me")
+    public Map<String, Object> deleteMe(@AuthenticationPrincipal InkoPrincipal principal,
+                                        @RequestBody Map<String, String> body) {
+        auth.deleteAccount(principal.userId(), body.get("password"));
+        return Map.of("ok", true);
     }
 }
