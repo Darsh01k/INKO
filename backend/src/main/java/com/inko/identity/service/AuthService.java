@@ -78,6 +78,12 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(String fullName, String email, String phone, String password) {
+        return register(fullName, email, phone, password, null);
+    }
+
+    @Transactional
+    public AuthResponse register(String fullName, String email, String phone, String password,
+            String accountType) {
         if ((email == null || email.isBlank()) && (phone == null || phone.isBlank())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
                     "Either an email address or a phone number is required");
@@ -92,15 +98,19 @@ public class AuthService {
             throw new ApiException(ErrorCode.CONFLICT, "An account with this phone number already exists");
         }
 
+        boolean shopOwner = "SHOP_OWNER".equals(accountType);
         User user = new User(fullName.trim(), normalizedEmail, normalizedPhone, encoder.encode(password),
                 UserStatus.ACTIVE);
         user.getRoles().add(role(RoleName.CUSTOMER));
+        if (shopOwner) {
+            user.getRoles().add(role(RoleName.SHOPKEEPER));
+        }
         users.save(user);
 
         if (normalizedEmail != null) {
             issueOtp(normalizedEmail, OtpPurpose.VERIFY_EMAIL); // delivery deferred — see DEFERRED.md
         }
-        log.info("Registered customer {}", user.getId());
+        log.info("Registered {} {}", shopOwner ? "shop owner" : "customer", user.getId());
         return issueAuthResponse(user);
     }
 

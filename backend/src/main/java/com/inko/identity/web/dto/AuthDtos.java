@@ -14,6 +14,11 @@ public final class AuthDtos {
     private AuthDtos() {
     }
 
+    /**
+     * accountType lets self-service signup pick a primary persona:
+     * CUSTOMER (default) prints documents; SHOP_OWNER also receives the
+     * SHOPKEEPER role so they land on the shop console after registering.
+     */
     public record RegisterRequest(
             @NotBlank @Size(max = 120) String fullName,
             @Email @Size(max = 180) String email,
@@ -21,7 +26,9 @@ public final class AuthDtos {
                     message = "must be a valid phone number")
             String phone,
             @NotBlank @Size(min = 8, max = 72, message
-                    = "password must be between 8 and 72 characters") String password
+                    = "password must be between 8 and 72 characters") String password,
+            @Pattern(regexp = "CUSTOMER|SHOP_OWNER",
+                    message = "accountType must be CUSTOMER or SHOP_OWNER") String accountType
     ) {
         public boolean hasIdentifier() {
             return (email != null && !email.isBlank()) || (phone != null && !phone.isBlank());

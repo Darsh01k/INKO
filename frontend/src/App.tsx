@@ -5,9 +5,9 @@ import { RoleRedirect } from '@/components/RoleRedirect'
 import { CustomerShell } from '@/layouts/CustomerShell'
 import { ShopShell } from '@/layouts/ShopShell'
 import { AdminShell } from '@/layouts/AdminShell'
-import CustomerLogin from '@/pages/CustomerLogin'
 import ShopLogin from '@/pages/ShopLogin'
 import AdminLogin from '@/pages/AdminLogin'
+import Welcome from '@/pages/Welcome'
 import Register from '@/pages/Register'
 import ForgotPassword from '@/pages/ForgotPassword'
 import Dashboard from '@/pages/Dashboard'
@@ -34,7 +34,9 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/login" element={<CustomerLogin />} />
+        {/* Unified welcome / sign-in / registration — routes each user to their console */}
+        <Route path="/login" element={<Welcome />} />
+        <Route path="/register" element={<Welcome />} />
         <Route path="/shop/login" element={<ShopLogin />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/customer/login" element={<Navigate to="/login" replace />} />

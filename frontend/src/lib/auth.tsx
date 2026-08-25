@@ -34,7 +34,7 @@ interface AuthContextValue {
   loginWithPassword: (identifier: string, password: string) => Promise<CurrentUser>
   requestOtp: (identifier: string) => Promise<string>
   verifyOtp: (identifier: string, code: string) => Promise<CurrentUser>
-  register: (fullName: string, email: string | undefined, phone: string | undefined, password: string) => Promise<CurrentUser>
+  register: (fullName: string, email: string | undefined, phone: string | undefined, password: string, accountType?: 'CUSTOMER' | 'SHOP_OWNER') => Promise<CurrentUser>
   forgotPassword: (email: string) => Promise<string>
   resetPassword: (identifier: string, code: string, newPassword: string) => Promise<void>
   logout: () => void
@@ -95,12 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const register = useCallback(
-    async (fullName: string, email: string | undefined, phone: string | undefined, password: string) => {
+    async (fullName: string, email: string | undefined, phone: string | undefined, password: string, accountType?: 'CUSTOMER' | 'SHOP_OWNER') => {
       const { data } = await api.post('/auth/register', {
         fullName,
         email: email || undefined,
         phone: phone || undefined,
         password,
+        accountType: accountType || undefined,
       })
       const nextUser = applySession(data)
       setUser(nextUser)

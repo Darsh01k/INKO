@@ -33,7 +33,8 @@ public class AuthController {
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
-        return auth.register(request.fullName(), request.email(), request.phone(), request.password());
+        return auth.register(request.fullName(), request.email(), request.phone(), request.password(),
+                request.accountType());
     }
 
     @PostMapping("/login")
