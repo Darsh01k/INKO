@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { UploadCloud, FileText, Image as ImageIcon, File, X, CheckCircle2, AlertTriangle, Eye, ArrowRight, Sparkles, QrCode } from 'lucide-react'
 import { api, apiErrorMessage, tokens } from '@/lib/api'
@@ -27,8 +27,20 @@ export default function Upload() {
   const preselectedShop = search.get('shopId') || null
   const fromQr = search.get('src') === 'qr' || Boolean(search.get('shopId'))
   const isGuest = !user || (user.email ?? '').endsWith('@guest.inko.local')
+  const [guestTried, setGuestTried] = useState(false)
   const [guestName, setGuestName] = useState('')
   const [nameBusy, setNameBusy] = useState(false)
+
+  // Login-optional printing: silently mint a guest session so uploads work without an account
+  useEffect(() => {
+    if (user || guestTried || tokens.access) return
+    setGuestTried(true)
+    api.post('/auth/guest', {}).then(({ data }) => {
+      tokens.set(data.accessToken, data.refreshToken)
+      localStorage.setItem('inko.lastLoginRole', 'customer')
+      return refreshMe()
+    }).catch(() => {})
+  }, [user, guestTried, refreshMe])
   const [files, setFiles] = useState<File[]>([])
   const [drag, setDrag] = useState(false)
   const [err, setErr] = useState('')
@@ -118,7 +130,7 @@ export default function Upload() {
           </div>
           <div className="flex gap-2">
             <Link to={`/login?next=${encodeURIComponent(`/upload${preselectedShop ? `?shopId=${preselectedShop}&src=qr` : ''}`)}`} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800"><LogIn className="h-4 w-4"/> Sign in</Link>
-            <Link to={`/register?next=${encodeURIComponent(`/upload${preselectedShop ? `?shopId=${preselectedShop}&src=qr` : ''}`)}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"><UserPlus className="h-4 w-4"/> Create account</Link>
+            <Link to={`/register?tab=register&next=${encodeURIComponent(`/upload${preselectedShop ? `?shopId=${preselectedShop}&src=qr` : ''}`)}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"><UserPlus className="h-4 w-4"/> Create account</Link>
           </div>
         </div>
       )}
@@ -228,7 +240,7 @@ export default function Upload() {
                       {doc.thumbnailUrl ? <img src={doc.thumbnailUrl} alt="" className="h-full w-full object-cover rounded-lg" /> : <FileText className="h-6 w-6 text-slate-400" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{doc.fileName ?? doc.name ?? `Document ${idx+1}`}</p>
+                       <p className="truncate text-sm font-semibold">{doc.filename ?? doc.fileName ?? doc.name ?? `Document ${idx+1}`}</p>
                       <p className="text-xs text-slate-500">{doc.pages ?? doc.pageCount ?? '—'} pages • {doc.size ? formatBytes(doc.size) : doc.mimeType ?? 'PDF'}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Badge tone="neutral">{doc.mimeType ?? 'document'}</Badge>

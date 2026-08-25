@@ -8,7 +8,6 @@ import { AdminShell } from '@/layouts/AdminShell'
 import ShopLogin from '@/pages/ShopLogin'
 import AdminLogin from '@/pages/AdminLogin'
 import Welcome from '@/pages/Welcome'
-import Register from '@/pages/Register'
 import ForgotPassword from '@/pages/ForgotPassword'
 import Dashboard from '@/pages/Dashboard'
 import Upload from '@/pages/Upload'
@@ -41,7 +40,6 @@ export default function App() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/customer/login" element={<Navigate to="/login" replace />} />
         <Route path="/signin" element={<Navigate to="/login" replace />} />
-        <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/qr/:code" element={<QrScan />} />
         <Route path="/shops/:shopId/print" element={<ShopPrint />} />

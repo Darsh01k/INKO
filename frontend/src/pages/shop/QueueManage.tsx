@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
 import { Card, Button, Badge, Alert, Select } from '@/components/ui'
-import { Radio, Timer, CheckCircle2, Play, AlertTriangle, XCircle, Phone } from 'lucide-react'
+import { Radio, Timer, CheckCircle2, AlertTriangle, XCircle, Phone } from 'lucide-react'
 
 export default function QueueManage() {
   const [shopId, setShopId] = useState('')
@@ -26,6 +26,43 @@ export default function QueueManage() {
   const filtered = tokens.filter(t=> filter==='ALL' || String(t.status).toUpperCase()===filter)
   const nextToken = tokens[0]
 
+  // Only transitions the backend token state machine allows (TokenStatus.canTransitionTo)
+  const NEXT_ACTION: Record<string, { label: string; target: string; tone?: string } | null> = {
+    WAITING: { label: 'Call', target: 'CALLED' },
+    CALLED: { label: 'Start printing', target: 'PRINTING' },
+    PRINTING: { label: 'Complete', target: 'COMPLETED', tone: 'emerald' },
+  }
+  function advanceActions(status: string) {
+    return NEXT_ACTION[String(status).toUpperCase()] ?? null
+  }
+  function canClose(status: string) {
+    return ['WAITING', 'CALLED', 'PRINTING'].includes(String(status).toUpperCase())
+  }
+
+  function ActionButtons({ t, size }: { t: any; size: 'lg' | 'sm' }) {
+    const next = advanceActions(t.status)
+    return (
+      <>
+        {next && (
+          <Button
+            size={size}
+            variant={next.tone === 'emerald' ? 'secondary' : size === 'lg' ? 'primary' : 'secondary'}
+            className={next.tone === 'emerald' ? 'bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600' : ''}
+            onClick={() => act(t.id, next.target)}
+          >
+            {next.tone === 'emerald' ? <CheckCircle2 className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/> : size==='sm' ? <Phone className="h-3.5 w-3.5"/> : <Phone className="h-4 w-4"/>} {next.label}
+          </Button>
+        )}
+        {canClose(t.status) && (
+          <>
+            <Button size={size} variant="ghost" onClick={() => act(t.id, 'FAILED')}><AlertTriangle className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/>Fail</Button>
+            <Button size={size} variant="ghost" onClick={() => act(t.id, 'CANCELLED')}><XCircle className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/>Cancel</Button>
+          </>
+        )}
+      </>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -37,7 +74,7 @@ export default function QueueManage() {
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium sm:inline-flex ${live ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}><span className={`h-2 w-2 rounded-full ${live ? 'animate-pulse bg-emerald-500' : 'bg-amber-500'}`}/> {live ? 'Live' : 'Reconnecting…'}</span>
           <Select value={filter} onChange={e=>setFilter(e.target.value)} className="w-36">
             <option value="ALL">All statuses</option>
-            <option>WAITING</option><option>CALLED</option><option>PRINTING</option><option>COMPLETED</option>
+            <option>WAITING</option><option>CALLED</option><option>PRINTING</option>
           </Select>
         </div>
       </div>
@@ -61,9 +98,7 @@ export default function QueueManage() {
             <div className="text-center lg:text-left">
               <p className="text-sm text-slate-500">{nextToken.type ?? 'PRINT'} • Shop {shopId.slice(0,8)}</p>
               <div className="mt-3 flex flex-wrap gap-2 justify-center lg:justify-start">
-                <Button onClick={()=>act(nextToken.id,'CALLED')}><Phone className="h-4 w-4"/> Call</Button>
-                <Button onClick={()=>act(nextToken.id,'PRINTING')} variant="secondary"><Play className="h-4 w-4"/> Start printing</Button>
-                <Button onClick={()=>act(nextToken.id,'COMPLETED')} variant="secondary" className="bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600"><CheckCircle2 className="h-4 w-4"/> Complete</Button>
+                <ActionButtons t={nextToken} size="lg" />
               </div>
             </div>
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm">
@@ -90,11 +125,7 @@ export default function QueueManage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <Button size="sm" variant="secondary" onClick={() => act(t.id, 'CALLED')}><Phone className="h-3.5 w-3.5"/>Call</Button>
-              <Button size="sm" onClick={() => act(t.id, 'PRINTING')}><Play className="h-3.5 w-3.5"/>Start</Button>
-              <Button size="sm" variant="secondary" className="bg-emerald-600 text-white hover:bg-emerald-700 border-transparent" onClick={() => act(t.id, 'COMPLETED')}><CheckCircle2 className="h-3.5 w-3.5"/>Done</Button>
-              <Button size="sm" variant="ghost" onClick={() => act(t.id, 'FAILED')}><AlertTriangle className="h-3.5 w-3.5"/>Fail</Button>
-              <Button size="sm" variant="ghost" onClick={() => act(t.id, 'CANCELLED')}><XCircle className="h-3.5 w-3.5"/>Cancel</Button>
+              <ActionButtons t={t} size="sm" />
             </div>
           </div>
         ))}

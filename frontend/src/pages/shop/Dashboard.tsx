@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import { Card, Button, Badge, EmptyState, Skeleton, Select } from '@/components/ui'
-import { Users, IndianRupee, Store, Activity, Clock3, ArrowUpRight, Timer, Printer, Boxes } from 'lucide-react'
+import { Users, IndianRupee, Store, Activity, Clock3, Timer, Printer, Boxes } from 'lucide-react'
 
 function KPI({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
   return (
@@ -24,6 +24,7 @@ export default function ShopDashboard() {
   const [shops, setShops] = useState<any[]>([])
   const [shopId, setShopId] = useState('')
   const [queuePreview, setQueuePreview] = useState<any[]>([])
+  const [queueCount, setQueueCount] = useState(0)
   const [orders, setOrders] = useState<any[]>([])
   const [revenue, setRevenue] = useState<RevenuePoint[] | null>(null)
   const [printers, setPrinters] = useState<any[]>([])
@@ -40,22 +41,17 @@ export default function ShopDashboard() {
 
   useEffect(() => {
     if (!shopId) return
-    setQueuePreview([]); setOrders([]); setRevenue(null)
+    setQueuePreview([]); setQueueCount(0); setOrders([]); setRevenue(null)
     loadShopData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shopId])
 
   function loadShopData() {
-    api.get(`/shops/${shopId}/queue`).then(q => setQueuePreview(q.data?.slice(0, 3) ?? [])).catch(() => {})
+    api.get(`/shops/${shopId}/queue`).then(q => { setQueuePreview(q.data?.slice(0, 3) ?? []); setQueueCount(q.data?.length ?? 0) }).catch(() => {})
     api.get(`/orders/shop/${shopId}`).then(r => setOrders((Array.isArray(r.data) ? r.data : []).slice(0, 5))).catch(() => {})
     api.get(`/shops/${shopId}/printers`).then(r => setPrinters(r.data ?? [])).catch(() => {})
     api.get(`/shops/${shopId}/inventory`).then(r => setInventory(r.data ?? [])).catch(() => {})
-    api.get('/analytics/revenue', { params: { shopId } }).then(r => {
-      const d = r.data
-      const byShop = d?.byShop
-      void byShop
-      api.get('/analytics/series', { params: { shopId, days: 7 } }).then(s => setRevenue(s.data ?? [])).catch(() => setRevenue([]))
-    }).catch(() => setRevenue([]))
+    api.get('/analytics/series', { params: { shopId, days: 7 } }).then(s => setRevenue(s.data ?? [])).catch(() => setRevenue([]))
   }
 
   const maxRev = Math.max(1, ...(revenue ?? []).map(p => Number(p.total ?? p.revenue ?? 0)))
@@ -65,7 +61,7 @@ export default function ShopDashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Store className="h-6 w-6"/> Shop dashboard</h1>
-          <p className="text-sm text-slate-500">Queue-first operations • live data from your shop</p>
+          <p className="text-sm text-slate-500">Queue-first operations • shop data live below (KPIs are platform-wide)</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {shops.length > 0 && (
@@ -80,10 +76,10 @@ export default function ShopDashboard() {
       {err && <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</Card>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPI icon={Users} label="Total orders" value={stats ? String(stats.totalOrders ?? stats.todayOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? `${stats.todayOrders} today` : undefined} />
-        <KPI icon={IndianRupee} label="Revenue" value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub="Net of refunds" />
+        <KPI icon={Users} label="Platform orders" value={stats ? String(stats.totalOrders ?? stats.todayOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? `${stats.todayOrders} today` : undefined} />
+        <KPI icon={IndianRupee} label="Platform revenue" value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub="Net of refunds" />
         <KPI icon={Store} label="Shops" value={stats ? String(stats.totalShops ?? shops.length) : String(shops.length)} sub={`${shops.filter(s => s.status === 'OPEN').length} open now`} />
-        <KPI icon={Timer} label="In queue" value={String(queuePreview.length)} sub="Top tokens (live)" />
+        <KPI icon={Timer} label="In queue" value={String(queueCount)} sub={queueCount > 0 ? `${queuePreview.length} shown below` : 'Top tokens (live)'} />
       </div>
 
       {!stats && !err && (
@@ -210,8 +206,6 @@ export default function ShopDashboard() {
             </table>
           </div>
         )}
-        <Link to="/admin/orders" className="mt-3 hidden" />
-        <ArrowUpRight className="hidden" />
       </Card>
     </div>
   )

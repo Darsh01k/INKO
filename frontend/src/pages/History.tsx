@@ -61,7 +61,7 @@ export default function History() {
           </div>
           <Select value={status} onChange={e=>setStatus(e.target.value)}>
             <option value="ALL">All statuses</option>
-            <option>DRAFT</option><option>PAYMENT_PENDING</option><option>CONFIRMED</option><option>PRINTING</option><option>COMPLETED</option><option>CANCELLED</option>
+            <option>QUEUED</option><option>ACCEPTED</option><option>PRINTING</option><option>COMPLETED</option><option>CANCELLED</option><option>REFUNDED</option>
           </Select>
           <Select value={shop} onChange={e=>setShop(e.target.value)}>
             <option value="ALL">All shops</option>

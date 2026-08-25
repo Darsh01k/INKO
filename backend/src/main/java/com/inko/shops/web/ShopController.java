@@ -39,10 +39,16 @@ public class ShopController {
         this.shops = shops;
     }
 
-    /** Public: customer shop discovery (open shops only). */
+    /** Public: customer shop discovery. Admins also see closed shops for governance. */
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public List<ShopSummaryDto> listOpenShops() {
+    public List<ShopSummaryDto> listOpenShops(@AuthenticationPrincipal InkoPrincipal principal) {
+        if (principal != null && principal.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"))) {
+            return shops.findAll(org.springframework.data.domain.Sort.by("name")).stream()
+                    .map(ShopController::toDto)
+                    .toList();
+        }
         return shops.findByStatusIn(List.of(ShopStatus.OPEN, ShopStatus.BUSY)).stream()
                 .map(ShopController::toDto)
                 .toList();
@@ -87,12 +93,14 @@ public class ShopController {
 
     /**
      * Tenant isolation: shopkeepers may only view their own shop; admins and customers may
-     * view any (customers need it to pick a print destination).
+     * view any (customers need it to pick a print destination). Anonymous visitors (QR entry)
+     * may view basic details too — the endpoint is public by design.
      */
     @GetMapping("/{id}")
     public ShopSummaryDto get(@AuthenticationPrincipal InkoPrincipal principal,
                               @PathVariable UUID id) {
         Shop shop = shops.findById(id).orElseThrow(() -> ApiException.notFound("Shop not found"));
+        if (principal == null) return toDto(shop);
 
         boolean isAdmin = principal.getAuthorities().stream().anyMatch(a ->
                 a.getAuthority().equals("ROLE_" + RoleName.ADMIN.name())

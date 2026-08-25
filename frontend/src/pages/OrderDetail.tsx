@@ -5,10 +5,21 @@ import { useAuth } from '@/lib/auth'
 import { Card, Button, Badge, Alert, Skeleton, Dialog, Label, Select, toast } from '@/components/ui'
 import { CheckCircle2, Clock3, CreditCard, FileText, Printer, ArrowRight, AlertTriangle, Receipt, Ticket, ShieldCheck, LifeBuoy } from 'lucide-react'
 
-const STEPS = ['DRAFT','PAYMENT_PENDING','CONFIRMED','PRINTING','COMPLETED'] as const
-function stepIndex(status: string) {
-  const i = STEPS.indexOf(status as any)
-  return i>=0?i:0
+// Timeline mirrors the real backend order lifecycle (OrderStatus enum)
+const STEPS = [
+  { key: 'PLACED', label: 'Placed' },
+  { key: 'PAYMENT', label: 'Payment' },
+  { key: 'QUEUED', label: 'Queued' },
+  { key: 'PRINTING', label: 'Printing' },
+  { key: 'COMPLETED', label: 'Completed' },
+] as const
+function stepIndex(status: string | undefined) {
+  const s = (status ?? '').toUpperCase()
+  if (['COMPLETED', 'REFUNDED'].includes(s)) return 4
+  if (s === 'PRINTING') return 3
+  if (['TOKEN_GENERATED', 'QUEUED', 'ACCEPTED', 'CANCELLATION_REQUESTED', 'RETRY_PENDING'].includes(s)) return 2
+  if (['PAID', 'COD_SELECTED', 'PAYMENT_PENDING', 'CONFIGURED'].includes(s)) return 1
+  return 0
 }
 
 export default function OrderDetail() {
@@ -20,7 +31,7 @@ export default function OrderDetail() {
   const [payBusy, setPayBusy] = useState('')
   const [refunds, setRefunds] = useState<any[]>([])
   const [complaintOpen, setComplaintOpen] = useState(false)
-  const [category, setCategory] = useState('PRINT_QUALITY')
+  const [category, setCategory] = useState('POOR_QUALITY')
   const [description, setDescription] = useState('')
 
   function loadAll() {
@@ -41,7 +52,7 @@ export default function OrderDetail() {
   async function decideRefund(refundId: string, approve: boolean) {
     setPayBusy(refundId); setPayMsg('')
     try {
-      await api.post(`/refunds/${refundId}/decision`, { decision: approve ? 'COMPLETED' : 'REJECTED' })
+      await api.post(`/refunds/${refundId}/decision`, { decision: approve ? 'APPROVED' : 'REJECTED' })
       toast(approve ? 'Refund approved' : 'Refund rejected', 'success')
       loadAll()
     } catch (e: any) { setPayMsg(apiErrorMessage(e)) } finally { setPayBusy('') }
@@ -61,9 +72,13 @@ export default function OrderDetail() {
     setPayBusy(method); setPayMsg('')
     try {
       const r = await api.post(`/orders/${id}/payment`, { method })
-      const pid = r.data.id
-      const v = await api.post(`/payments/${pid}/verify`, {})
-      setPayMsg(`Payment ${v.data.status}`)
+      if (method !== 'COD') {
+        const v = await api.post(`/payments/${r.data.id}/verify`, {})
+        setPayMsg(`Payment ${v.data.status}`)
+      } else {
+        // COD is confirmed immediately server-side; there is nothing to verify online
+        setPayMsg('Order confirmed — pay at the shop counter when you collect')
+      }
       const fresh = await api.get(`/orders/${id}`)
       setData(fresh.data)
     } catch (e: any) { setPayMsg(apiErrorMessage(e)) } finally { setPayBusy('') }
@@ -114,12 +129,12 @@ export default function OrderDetail() {
         <div className="px-6 py-5 overflow-x-auto">
           <div className="flex items-center gap-2 min-w-[520px]">
             {STEPS.map((s,i)=>(
-              <div key={s} className="flex items-center gap-2 flex-1">
+              <div key={s.key} className="flex items-center gap-2 flex-1">
                 <div className={`flex flex-col items-center gap-1.5 ${i<=current?'' : 'opacity-50'}`}>
                   <div className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${i < current ? 'bg-emerald-500 border-emerald-500 text-white' : i===current ? 'bg-[oklch(0.55_0.20_260)] border-[oklch(0.55_0.20_260)] text-white shadow' : 'bg-white border-slate-200 text-slate-400'}`}>
                     {i < current ? <CheckCircle2 className="h-5 w-5"/> : i===current ? <Clock3 className="h-5 w-5"/> : <span className="text-xs font-bold">{i+1}</span>}
                   </div>
-                  <span className={`text-[11px] font-medium whitespace-nowrap ${i===current ? 'text-[oklch(0.55_0.20_260)]' : i<current ? 'text-emerald-700' : 'text-slate-500'}`}>{s.replace('_',' ')}</span>
+                  <span className={`text-[11px] font-medium whitespace-nowrap ${i===current ? 'text-[oklch(0.55_0.20_260)]' : i<current ? 'text-emerald-700' : 'text-slate-500'}`}>{s.label}</span>
                 </div>
                 {i < STEPS.length-1 && <div className={`h-0.5 flex-1 ${i < current ? 'bg-emerald-400' : 'bg-slate-200'}`} />}
               </div>
@@ -144,10 +159,10 @@ export default function OrderDetail() {
                       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white"><Printer className="h-4 w-4"/></div>
                       <div>
                         <p className="text-sm font-medium">{it.documentId?.slice(0,8) ?? `Item ${idx+1}`}</p>
-                        <p className="text-xs text-slate-500">{it.paperSize ?? 'A4'} • {it.colorMode ?? 'BW'} • {it.copies ?? 1}× • {it.pageSelection ?? 'ALL'}</p>
+                        <p className="text-xs text-slate-500">{it.copies ?? 1}× copies • {it.pageCount ?? '?'} pages</p>
                       </div>
                     </div>
-                    <Badge tone="neutral">{it.status ?? '—'}</Badge>
+                    <Badge tone="neutral">{items.length ? `Item ${idx + 1}` : '—'}</Badge>
                   </div>
                 ))}
               </div>
@@ -210,7 +225,7 @@ export default function OrderDetail() {
                 ))}
               </div>
             )}
-            {(order.status === 'PAID' || order.status === 'PRINTING' || order.status === 'QUEUED' || order.status === 'CONFIRMED') && !refunds.some(r => r.status === 'REQUESTED') && (
+                        {['PAID', 'COD_SELECTED', 'TOKEN_GENERATED', 'QUEUED', 'ACCEPTED', 'PRINTING'].includes(order.status) && !refunds.some(r => r.status === 'REQUESTED') && (
               <Button variant="outline" className="mt-3 w-full" size="sm" loading={payBusy === 'refund'} onClick={requestRefund}>Request refund (10% fee)</Button>
             )}
             <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex gap-2">
@@ -232,7 +247,7 @@ export default function OrderDetail() {
           <div>
             <Label>Category</Label>
             <Select value={category} onChange={e => setCategory(e.target.value)}>
-              {['PRINT_QUALITY', 'DELAY', 'WRONG_CONFIG', 'PAYMENT', 'STAFF_BEHAVIOUR', 'OTHER'].map(c => <option key={c}>{c}</option>)}
+              {['WRONG_PRINT', 'MISSING_PAGES', 'POOR_QUALITY', 'PAYMENT_ISSUE', 'REFUND_ISSUE', 'DELAY', 'SHOP_BEHAVIOR', 'PRINTER_ISSUE', 'OTHER'].map(c => <option key={c}>{c}</option>)}
             </Select>
           </div>
           <div>

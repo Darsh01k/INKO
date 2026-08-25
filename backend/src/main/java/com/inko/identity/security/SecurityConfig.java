@@ -77,6 +77,19 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/shops",
                                 "/api/pricing/rules", "/api/discounts", "/api/discounts/coupons")
                             .permitAll()
+                        // Guest QR entry flow: resolve a scanned code and view one shop without an account.
+                        // /mine stays protected — first match wins, so it is declared before the wildcard.
+                        .requestMatchers("/api/shops/mine").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/shops/*",
+                                "/api/qr/*/resolve")
+                            .permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/qr/*/scan")
+                            .permitAll()
+                        // Platform-wide analytics are staff-only; refund decisions admin-only
+                        .requestMatchers("/api/analytics/**")
+                            .hasAnyRole("ADMIN", "SUPER_ADMIN", "SHOPKEEPER")
+                        .requestMatchers("/api/refunds/*/decision")
+                            .hasAnyRole("ADMIN", "SUPER_ADMIN")
                         .requestMatchers("/api/admin/**")
                             .hasAnyRole("ADMIN", "SUPER_ADMIN")
                         .anyRequest().authenticated())

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Card, Badge, Button, EmptyState, Skeleton, Input, toast } from '@/components/ui'
-import { Users as UsersIcon, Search, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Users as UsersIcon, Search, RefreshCw, ShieldCheck, ShieldAlert } from 'lucide-react'
 
 interface UserRow {
   id: string
@@ -33,12 +33,13 @@ export default function AdminUsers() {
 
   function load() {
     setError(false); setRows(null)
-    api.get('/admin/users').then(r => setRows(extractRows(r.data))).catch(() => setError(true))
+    api.get('/admin/users', { params: { size: 100 } }).then(r => setRows(extractRows(r.data))).catch(() => setError(true))
     api.get('/admin/users/count').then(r => setCounts(r.data ?? {})).catch(() => {})
   }
   useEffect(load, [])
 
   async function saveRoles(id: string) {
+    if (draftRoles.length === 0) { toast('At least one role is required', 'error'); return }
     setBusy(true); setError(false)
     try {
       await api.patch(`/admin/users/${id}/roles`, { roles: draftRoles })
@@ -46,6 +47,15 @@ export default function AdminUsers() {
       setEditing(null)
       load()
     } catch (e) { setError(true); toast(apiErrorMessage(e), 'error') } finally { setBusy(false) }
+  }
+
+  async function setStatus(u: UserRow, status: string) {
+    setBusy(true)
+    try {
+      await api.patch(`/admin/users/${u.id}/status`, { status })
+      toast(status === 'ACTIVE' ? `${u.fullName} reactivated` : `${u.fullName} is now ${status.toLowerCase()}`, 'success')
+      load()
+    } catch (e) { toast(apiErrorMessage(e), 'error') } finally { setBusy(false) }
   }
 
   const filtered = (rows ?? []).filter(u => !q || `${u.fullName} ${u.email ?? ''} ${u.phone ?? ''}`.toLowerCase().includes(q.toLowerCase()))
@@ -110,7 +120,12 @@ export default function AdminUsers() {
                           <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
                         </div>
                       ) : canEdit(u) ? (
-                        <Button size="sm" variant="secondary" onClick={() => { setEditing(u.id); setDraftRoles(u.roles ?? []) }}>Edit roles</Button>
+                        <div className="flex justify-end gap-1.5">
+                          <Button size="sm" variant="secondary" onClick={() => { setEditing(u.id); setDraftRoles(u.roles ?? []) }}>Edit roles</Button>
+                          {(u.status ?? 'ACTIVE') === 'ACTIVE'
+                            ? <Button size="sm" variant="ghost" loading={busy} onClick={() => setStatus(u, 'SUSPENDED')}><ShieldAlert className="h-3.5 w-3.5"/> Suspend</Button>
+                            : <Button size="sm" variant="ghost" loading={busy} onClick={() => setStatus(u, 'ACTIVE')}>Reactivate</Button>}
+                        </div>
                       ) : <span className="text-xs text-slate-400">you</span>}
                     </td>
                   </tr>

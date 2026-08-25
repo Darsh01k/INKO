@@ -29,11 +29,27 @@ export default function Configure() {
 
   const selectedShop = shops.find(s=>s.id===shopId)
 
+  // Expands selections like "1-5,8,10-12" into a true page total — mirrors backend parsing
+  function countPages(sel: string, total: number) {
+    if (!sel || sel.toUpperCase() === 'ALL') return total
+    const sum = sel.split(',').reduce((n: number, part: string) => {
+      const t = part.trim()
+      if (!t) return n
+      if (t.includes('-')) {
+        const [a, b] = t.split('-').map(Number)
+        return Number.isFinite(a) && Number.isFinite(b) ? n + Math.max(0, b - a + 1) : n
+      }
+      const v = Number(t)
+      return Number.isFinite(v) ? n + 1 : n
+    }, 0)
+    return sum || total
+  }
+
   async function preview() {
     if (!shopId) { setErr('Select a shop'); return }
     setLoading(true); setErr('')
     const docPages = docs[0]?.pages ?? docs[0]?.pageCount ?? 5
-    const parsedPages = pages === 'ALL' ? docPages : pages.split(',').length || docPages
+    const parsedPages = countPages(pages, docPages)
     try {
       const res = await api.post('/pricing/quote', { shopId, paperSize: paper, colorMode: color, sidesMode: sides, pages: parsedPages, copies, specialPaper: false, couponCode: coupon || undefined })
       setQuote(res.data); setCouponApplied(coupon || null)
@@ -99,7 +115,7 @@ export default function Configure() {
                 {docs.slice(0,3).map((d,i)=>(
                   <div key={i} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                     <FileText className="h-4 w-4 text-slate-500" />
-                    <span className="truncate font-medium">{d.fileName ?? d.name ?? `Document ${i+1}`}</span>
+                    <span className="truncate font-medium">{d.filename ?? d.fileName ?? d.name ?? `Document ${i+1}`}</span>
                     <Badge tone="neutral" className="ml-auto">{d.pages ?? d.pageCount ?? '—'} pages</Badge>
                   </div>
                 ))}

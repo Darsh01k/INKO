@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import { api } from '@/lib/api'
 import { Card, Badge, Button, EmptyState } from '@/components/ui'
 import { Link } from 'react-router-dom'
@@ -21,7 +22,9 @@ export default function AdminDashboard() {
   useEffect(load, [])
 
   useEffect(() => {
-    api.get('/actuator/health').then(r => setHealth(r.data?.status === 'UP' ? 'UP' : 'DOWN')).catch(() => setHealth('DOWN'))
+    // Actuator lives outside the /api prefix — probe the server root, not the API base
+    const healthUrl = `${String(api.defaults.baseURL ?? '/api').replace(/\/api\/?$/, '')}/actuator/health`
+    axios.get(healthUrl).then(r => setHealth(r.data?.status === 'UP' ? 'UP' : 'DOWN')).catch(() => setHealth('DOWN'))
     api.get('/analytics/mix').then(r => setMix(r.data ?? [])).catch(() => setMix([]))
     api.get('/analytics/series', { params: { days: 7 } }).then(r => setSeries(r.data ?? [])).catch(() => setSeries([]))
   }, [])
