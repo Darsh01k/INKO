@@ -38,6 +38,22 @@ export interface ApiErrorBody {
   details?: Record<string, string>
 }
 
+/** Friendly fallbacks used when the backend gives no usable message. */
+const STATUS_MESSAGES: Record<number, string> = {
+  400: 'Invalid request — please check the details and try again.',
+  401: 'Please sign in to continue.',
+  403: 'You do not have permission to perform this action.',
+  404: 'Not found — it may have been removed.',
+  405: 'This action is not available yet — the server may still be updating. Try again in a minute.',
+  409: 'This conflicts with existing data. Refresh the page and try again.',
+  413: 'The file is too large to upload.',
+  429: 'Too many attempts — please wait a moment before retrying.',
+  500: 'Something went wrong on our side — please try again in a moment.',
+  502: 'The server is temporarily unreachable — please try again shortly.',
+  503: 'The service is starting up or restarting — try again in about a minute.',
+  504: 'The server took too long to respond — please try again.',
+}
+
 export function apiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const body = error.response?.data as ApiErrorBody | undefined
@@ -45,7 +61,11 @@ export function apiErrorMessage(error: unknown): string {
       const fieldErrors = body.details ? Object.values(body.details) : []
       return fieldErrors.length ? `${body.message}: ${fieldErrors.join(', ')}` : body.message
     }
-    if (error.code === 'ERR_NETWORK') return 'Cannot reach the server — is the backend running on :8080?'
+    const status = error.response?.status
+    if (status && STATUS_MESSAGES[status]) return STATUS_MESSAGES[status]
+    if (error.code === 'ERR_NETWORK' || !error.response) {
+      return 'Cannot reach the server — check your connection and try again.'
+    }
     return error.message || 'Something went wrong'
   }
   return 'Something went wrong'

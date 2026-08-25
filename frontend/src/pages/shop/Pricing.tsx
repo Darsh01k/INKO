@@ -31,7 +31,7 @@ export default function ShopPricing() {
   const [newDiscount, setNewDiscount] = useState({ name: '', type: 'PERCENT', value: 10, minOrderAmount: '', maxDiscountAmount: '' })
 
   useEffect(() => {
-    api.get('/shops').then(r => {
+    api.get('/shops/mine').then(r => {
       setShops(r.data ?? [])
       if (r.data?.[0]) setShopId((p: string) => p || r.data[0].id)
     }).catch(() => {})

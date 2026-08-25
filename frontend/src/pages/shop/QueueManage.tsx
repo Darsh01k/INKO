@@ -11,7 +11,7 @@ export default function QueueManage() {
   const [filter, setFilter] = useState('ALL')
   const [live, setLive] = useState(false)
 
-  useEffect(() => { api.get('/shops').then(r => { setShops(r.data); if (r.data[0]) setShopId(r.data[0].id) }).catch(() => {}) }, [])
+  useEffect(() => { api.get('/shops/mine').then(r => { setShops(r.data); if (r.data[0]) setShopId(r.data[0].id) }).catch(() => {}) }, [])
 
   async function load() {
     if (!shopId) return

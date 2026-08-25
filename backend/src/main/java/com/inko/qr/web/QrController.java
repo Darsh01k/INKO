@@ -41,7 +41,17 @@ public class QrController {
     @PostMapping("/shops/{shopId}/qr")
     @ResponseStatus(HttpStatus.CREATED)
     public QrCode generate(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID shopId) {
+        requireShopManager(p, shopId);
         return svc.generate(shopId, p == null ? null : p.userId());
+    }
+
+    private void requireShopManager(InkoPrincipal p, UUID shopId) {
+        if (p == null) throw ApiException.forbidden("Sign in to manage this shop");
+        boolean admin = p.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        if (!admin && !shops.existsByOwnerUserIdAndId(p.userId(), shopId)) {
+            throw ApiException.forbidden("You do not manage this shop");
+        }
     }
 
     @GetMapping("/shops/{shopId}/qr")

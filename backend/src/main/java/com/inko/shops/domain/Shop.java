@@ -82,6 +82,10 @@ public class Shop {
         return supportsColor;
     }
 
+    public void setSupportsColor(boolean supportsColor) {
+        this.supportsColor = supportsColor;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }

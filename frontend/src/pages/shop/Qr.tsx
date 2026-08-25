@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
-import { Card, Button, Badge, Alert, Dialog } from '@/components/ui'
+import { Card, Button, Badge, Alert, Dialog, Input, Label, toast } from '@/components/ui'
 import { QrCode, RefreshCw, Download, Copy, Check, Store, ExternalLink, ScanLine } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -15,16 +15,30 @@ export default function ShopQr() {
   const [copied, setCopied] = useState('')
   const [regenOpen, setRegenOpen] = useState(false)
   const [regenBusy, setRegenBusy] = useState(false)
+  const [shopName, setShopName] = useState('')
+  const [shopCity, setShopCity] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
 
   useEffect(() => {
     api.get('/net/lan-ip').then(r => setLanIp(r.data.ip)).catch(() => {})
-    api.get('/shops').then(r => {
+    api.get('/shops/mine').then(r => {
       setShops(r.data ?? [])
       if (r.data?.[0]) setShopId(r.data[0].id)
     }).catch(() => {})
   }, [])
 
   useEffect(() => { if (shopId) load() }, [shopId])
+
+  async function createShop() {
+    if (!shopName.trim()) { setErr('Give your shop a name first'); return }
+    setCreateBusy(true); setErr('')
+    try {
+      const { data } = await api.post('/shops', { name: shopName.trim(), city: shopCity.trim() || undefined })
+      setShops(prev => [...prev, data])
+      setShopId(data.id)
+      toast('Shop created! Now generate your QR code below.', 'success')
+    } catch (e: any) { setErr(apiErrorMessage(e)) } finally { setCreateBusy(false) }
+  }
 
   async function load() {
     try { const r = await api.get(`/shops/${shopId}/qr`); setQrs(r.data ?? []) } catch (e: any) { setErr(apiErrorMessage(e)) }
@@ -70,6 +84,29 @@ export default function ShopQr() {
         <p className="text-sm text-slate-500">Generate a QR that opens your shop’s print page in any browser — customers scan, upload, and print.</p>
       </div>
 
+      {shops.length === 0 ? (
+        <Card className="p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900"><Store className="h-5 w-5 text-white" /></span>
+            <div>
+              <h2 className="text-sm font-semibold">Set up your shop first</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Register your print shop to unlock QR codes, queue management and pricing.</p>
+            </div>
+          </div>
+          {err && <Alert tone="error" className="mt-4">{err}</Alert>}
+          <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div>
+              <Label htmlFor="newShopName">Shop name</Label>
+              <Input id="newShopName" value={shopName} onChange={e => setShopName(e.target.value)} maxLength={150} placeholder="e.g. Sharma Digital Xerox" />
+            </div>
+            <div>
+              <Label htmlFor="newShopCity">City <span className="font-normal text-slate-400">(optional)</span></Label>
+              <Input id="newShopCity" value={shopCity} onChange={e => setShopCity(e.target.value)} maxLength={80} placeholder="e.g. Bengaluru" />
+            </div>
+            <Button loading={createBusy} onClick={createShop}><Store className="h-4 w-4" /> Create my shop</Button>
+          </div>
+        </Card>
+      ) : (
       <Card className="p-5">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -88,6 +125,7 @@ export default function ShopQr() {
           </div>
         )}
       </Card>
+      )}
 
       {active ? (
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">

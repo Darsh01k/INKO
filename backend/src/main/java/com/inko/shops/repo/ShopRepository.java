@@ -16,5 +16,7 @@ public interface ShopRepository extends JpaRepository<Shop, UUID> {
 
     Optional<Shop> findFirstByOwnerUserIdOrderByNameAsc(UUID keeperUserId);
 
+    List<Shop> findByOwnerUserIdOrderByNameAsc(UUID keeperUserId);
+
     boolean existsByOwnerUserIdAndId(UUID keeperUserId, UUID shopId);
 }

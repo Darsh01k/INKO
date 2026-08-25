@@ -32,7 +32,7 @@ export default function ShopDashboard() {
 
   useEffect(() => {
     api.get('/analytics/overview').then(r => setStats(r.data)).catch(e => setErr(apiErrorMessage(e)))
-    api.get('/shops').then(r => {
+    api.get('/shops/mine').then(r => {
       setShops(r.data ?? [])
       if (r.data?.[0]) setShopId((prev: string) => prev || r.data[0].id)
     }).catch(() => {})
