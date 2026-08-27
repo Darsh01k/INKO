@@ -25,6 +25,7 @@ import AdminOrders from '@/pages/admin/Orders'
 import AdminAudit from '@/pages/admin/Audit'
 import AdminComplaints from '@/pages/admin/Complaints'
 import ShopPricing from '@/pages/shop/Pricing'
+import ShopManage from '@/pages/shop/Shops'
 import { Profile, SettingsPage } from '@/pages/Account'
 import QrScan from '@/pages/QrScan'
 import ShopPrint from '@/pages/ShopPrint'
@@ -67,6 +68,7 @@ export default function App() {
           <Route element={<ShopShell />}>
             <Route path="/shop/dashboard" element={<ShopDashboard />} />
             <Route path="/shop/queue" element={<ShopQueueManage />} />
+            <Route path="/shop/shops" element={<ShopManage />} />
             <Route path="/shop/pricing" element={<ShopPricing />} />
             <Route path="/shop/qr" element={<ShopQr />} />
             <Route path="/shop/profile" element={<Profile home="/shop/dashboard" />} />

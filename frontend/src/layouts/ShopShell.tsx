@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
-import { Printer, LogOut, LayoutDashboard, ListOrdered, QrCode, Tag, Settings, User, Menu, X } from 'lucide-react'
+import { Printer, LogOut, LayoutDashboard, ListOrdered, QrCode, Tag, Settings, User, Menu, X, Store } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { useSettings } from '@/lib/settings'
 import { NotificationsBell } from '@/components/NotificationsBell'
@@ -16,6 +16,7 @@ export function ShopShell() {
   const NAV = [
     { to: '/shop/dashboard', label: t('navDashboard'), icon: LayoutDashboard },
     { to: '/shop/queue', label: t('navQueue'), icon: ListOrdered },
+    { to: '/shop/shops', label: t('navShops'), icon: Store },
     { to: '/shop/pricing', label: t('navPricing'), icon: Tag },
     { to: '/shop/qr', label: t('navQr'), icon: QrCode },
   ]

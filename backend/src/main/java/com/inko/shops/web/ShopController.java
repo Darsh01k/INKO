@@ -7,39 +7,33 @@ import com.inko.identity.domain.RoleName;
 import com.inko.shops.domain.Shop;
 import com.inko.shops.domain.ShopStatus;
 import com.inko.shops.repo.ShopRepository;
+import com.inko.identity.repo.UserRepository;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Read-only shop endpoints for discovery + tenant-isolation enforcement groundwork.
- */
 @RestController
 @RequestMapping("/api/shops")
 public class ShopController {
 
     public record ShopSummaryDto(UUID id, String name, String city, ShopStatus status,
-                                 boolean supportsColor) {
-    }
+                                 boolean supportsColor, String addressLine1, String addressLine2,
+                                 String state, String pincode, Double latitude, Double longitude, String phone, String email) {}
 
     private final ShopRepository shops;
+    private final UserRepository users;
+    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-    public ShopController(ShopRepository shops) {
+    public ShopController(ShopRepository shops, UserRepository users) {
         this.shops = shops;
+        this.users = users;
     }
 
-    /** Public: customer shop discovery. Admins also see closed shops for governance. */
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
     public List<ShopSummaryDto> listOpenShops(@AuthenticationPrincipal InkoPrincipal principal) {
@@ -54,7 +48,6 @@ public class ShopController {
                 .toList();
     }
 
-    /** Shops owned by the signed-in shopkeeper (any status) — drives keeper consoles. */
     @GetMapping("/mine")
     public List<ShopSummaryDto> myShops(@AuthenticationPrincipal InkoPrincipal principal) {
         requireKeeper(principal);
@@ -63,27 +56,18 @@ public class ShopController {
                 .toList();
     }
 
-    /**
-     * Self-service shop onboarding: a shopkeeper registers their print shop and becomes its
-     * owner immediately, so QR generation, queue and pricing work without admin intervention.
-     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ShopSummaryDto create(@AuthenticationPrincipal InkoPrincipal principal,
                                  @RequestBody Map<String, Object> body) {
         requireKeeper(principal);
-        Object nameObj = body.get("name");
-        String name = nameObj == null ? "" : String.valueOf(nameObj).trim();
+        String name = str(body.get("name"));
         if (name.isEmpty() || name.length() > 150) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    "Shop name is required (max 150 characters)");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "Shop name is required (max 150)");
         }
-        String city = body.get("city") == null ? null : String.valueOf(body.get("city")).trim();
-        if (city != null && city.length() > 80) city = city.substring(0, 80);
-
         Shop shop = new Shop();
         shop.setName(name);
-        shop.setCity(city == null || city.isEmpty() ? null : city);
+        applyAddressFields(shop, body);
         shop.setOwnerUserId(principal.userId());
         shop.setStatus(ShopStatus.OPEN);
         Object color = body.get("supportsColor");
@@ -91,32 +75,105 @@ public class ShopController {
         return toDto(shops.save(shop));
     }
 
-    /**
-     * Tenant isolation: shopkeepers may only view their own shop; admins and customers may
-     * view any (customers need it to pick a print destination). Anonymous visitors (QR entry)
-     * may view basic details too — the endpoint is public by design.
-     */
     @GetMapping("/{id}")
     public ShopSummaryDto get(@AuthenticationPrincipal InkoPrincipal principal,
                               @PathVariable UUID id) {
         Shop shop = shops.findById(id).orElseThrow(() -> ApiException.notFound("Shop not found"));
         if (principal == null) return toDto(shop);
-
         boolean isAdmin = principal.getAuthorities().stream().anyMatch(a ->
                 a.getAuthority().equals("ROLE_" + RoleName.ADMIN.name())
                         || a.getAuthority().equals("ROLE_" + RoleName.SUPER_ADMIN.name()));
         boolean isKeeper = principal.getAuthorities().stream().anyMatch(a ->
                 a.getAuthority().equals("ROLE_" + RoleName.SHOPKEEPER.name()));
-
         if (isKeeper && !isAdmin && !principal.userId().equals(shop.getOwnerUserId())) {
             throw ApiException.forbidden("You do not manage this shop");
         }
         return toDto(shop);
     }
 
+    @PatchMapping("/{id}")
+    public ShopSummaryDto update(@AuthenticationPrincipal InkoPrincipal principal,
+                                 @PathVariable UUID id,
+                                 @RequestBody Map<String, Object> body) {
+        requireKeeper(principal);
+        Shop shop = shops.findById(id).orElseThrow(() -> ApiException.notFound("Shop not found"));
+        if (!principal.userId().equals(shop.getOwnerUserId())) {
+            boolean isAdmin = principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+            if (!isAdmin) throw ApiException.forbidden("You do not manage this shop");
+        }
+        if (body.containsKey("name")) {
+            String n = str(body.get("name"));
+            if (n.isEmpty() || n.length() > 150) throw new ApiException(ErrorCode.VALIDATION_FAILED, "Shop name is required (max 150)");
+            shop.setName(n);
+        }
+        applyAddressFields(shop, body);
+        if (body.containsKey("supportsColor")) shop.setSupportsColor(Boolean.parseBoolean(String.valueOf(body.get("supportsColor"))));
+        if (body.containsKey("status")) {
+            try { shop.setStatus(ShopStatus.valueOf(String.valueOf(body.get("status")))); } catch (Exception ignored) {}
+        }
+        return toDto(shops.save(shop));
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal InkoPrincipal principal,
+                       @PathVariable UUID id,
+                       @RequestBody(required = false) Map<String, String> body) {
+        requireKeeper(principal);
+        Shop shop = shops.findById(id).orElseThrow(() -> ApiException.notFound("Shop not found"));
+        if (!principal.userId().equals(shop.getOwnerUserId())) {
+            throw ApiException.forbidden("You do not manage this shop");
+        }
+        String password = body == null ? null : body.get("password");
+        if (password == null || password.isBlank()) throw new ApiException(ErrorCode.VALIDATION_FAILED, "Password is required to delete shop");
+        var user = users.findById(principal.userId()).orElseThrow(() -> ApiException.notFound("User not found"));
+        if (user.getPasswordHash() == null || !encoder.matches(password, user.getPasswordHash())) {
+            throw new ApiException(ErrorCode.INVALID_CREDENTIALS, "Incorrect password");
+        }
+        shops.delete(shop);
+    }
+
+    private void applyAddressFields(Shop shop, Map<String, Object> body) {
+        if (body.containsKey("addressLine1")) shop.setAddressLine1(trimOrNull(body.get("addressLine1"), 200));
+        if (body.containsKey("addressLine2")) shop.setAddressLine2(trimOrNull(body.get("addressLine2"), 200));
+        if (body.containsKey("city")) shop.setCity(trimOrNull(body.get("city"), 80));
+        if (body.containsKey("state")) shop.setState(trimOrNull(body.get("state"), 80));
+        if (body.containsKey("pincode")) {
+            String p = trimOrNull(body.get("pincode"), 12);
+            if (p != null && !p.matches("\\d{5,6}")) throw new ApiException(ErrorCode.VALIDATION_FAILED, "Pincode must be 5-6 digits");
+            shop.setPincode(p);
+        }
+        if (body.containsKey("phone")) shop.setPhone(trimOrNull(body.get("phone"), 20));
+        if (body.containsKey("email")) shop.setEmail(trimOrNull(body.get("email"), 180));
+        if (body.containsKey("latitude")) shop.setLatitude(parseDouble(body.get("latitude")));
+        if (body.containsKey("longitude")) shop.setLongitude(parseDouble(body.get("longitude")));
+        if (shop.getLatitude() != null && (shop.getLatitude() < -90 || shop.getLatitude() > 90))
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid latitude");
+        if (shop.getLongitude() != null && (shop.getLongitude() < -180 || shop.getLongitude() > 180))
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid longitude");
+        boolean hasAddress = shop.getAddressLine1() != null && !shop.getAddressLine1().isBlank();
+        boolean hasCity = shop.getCity() != null && !shop.getCity().isBlank();
+        if (hasAddress && !hasCity) throw new ApiException(ErrorCode.VALIDATION_FAILED, "City is required when address is provided");
+        if (shop.getLatitude() != null ^ shop.getLongitude() != null)
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "Provide both latitude and longitude together");
+    }
+
+    private static String str(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
+    private static String trimOrNull(Object o, int max) {
+        if (o == null) return null;
+        String s = String.valueOf(o).trim();
+        if (s.isEmpty()) return null;
+        return s.length() > max ? s.substring(0, max) : s;
+    }
+    private static Double parseDouble(Object o) {
+        if (o == null || String.valueOf(o).trim().isEmpty()) return null;
+        try { return Double.parseDouble(String.valueOf(o).trim()); } catch (Exception e) { throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid coordinate"); }
+    }
+
     private static ShopSummaryDto toDto(Shop s) {
         return new ShopSummaryDto(s.getId(), s.getName(), s.getCity(), s.getStatus(),
-                s.isSupportsColor());
+                s.isSupportsColor(), s.getAddressLine1(), s.getAddressLine2(), s.getState(), s.getPincode(),
+                s.getLatitude(), s.getLongitude(), s.getPhone(), s.getEmail());
     }
 
     private static void requireKeeper(InkoPrincipal principal) {
@@ -126,8 +183,6 @@ public class ShopController {
                     || r.equals("ROLE_" + RoleName.ADMIN.name())
                     || r.equals("ROLE_" + RoleName.SUPER_ADMIN.name());
         });
-        if (!allowed) {
-            throw ApiException.forbidden("Only shop owners can manage shops");
-        }
+        if (!allowed) throw ApiException.forbidden("Only shop owners can manage shops");
     }
 }

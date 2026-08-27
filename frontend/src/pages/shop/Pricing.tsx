@@ -17,7 +17,10 @@ interface DiscountRule {
 }
 
 const PAPERS = ['A4', 'A3', 'A5', 'LETTER', 'LEGAL']
-const emptyRule = { paperSize: 'A4', colorMode: 'BW', sidesMode: 'SINGLE', pricePerPage: 2, specialPaperCharge: 0 }
+const COLORS: Array<'BW'|'COLOR'> = ['BW','COLOR']
+const SIDES: Array<'SINGLE'|'DOUBLE'> = ['SINGLE','DOUBLE']
+const todayIso = () => new Date().toISOString().slice(0,10)
+const emptyRule = { paperSize: 'A4', colorMode: 'BW' as const, sidesMode: 'SINGLE' as const, pricePerPage: 2, specialPaperCharge: 0, effectiveFrom: todayIso() }
 
 export default function ShopPricing() {
   const [shops, setShops] = useState<any[]>([])
@@ -48,9 +51,22 @@ export default function ShopPricing() {
   async function createRule() {
     setBusy(true); setErr('')
     try {
-      await api.post('/pricing/rules', { ...newRule, scope: 'SHOP', shopId, active: true })
-      toast('Pricing rule created', 'success'); setNewRule({ ...emptyRule }); load()
-    } catch (e) { setErr(apiErrorMessage(e)) } finally { setBusy(false) }
+      const payload: any = {
+        scope: 'SHOP', shopId, active: true,
+        paperSize: newRule.paperSize,
+        colorMode: newRule.colorMode,
+        sidesMode: newRule.sidesMode,
+        pricePerPage: Number(newRule.pricePerPage),
+        effectiveFrom: newRule.effectiveFrom || todayIso(),
+      }
+      if (newRule.specialPaperCharge != null && String(newRule.specialPaperCharge) !== '') payload.specialPaperCharge = Number(newRule.specialPaperCharge)
+      await api.post('/pricing/rules', payload)
+      toast('Pricing rule created', 'success'); setNewRule({ ...emptyRule, effectiveFrom: todayIso() }); load()
+    } catch (e: any) {
+      const d = e?.response?.data?.details
+      const detailMsg = d ? ': ' + Object.entries(d).map(([k,v])=>`${k} ${v}`).join(', ') : ''
+      setErr(apiErrorMessage(e) + detailMsg)
+    } finally { setBusy(false) }
   }
   async function deleteRule(id: string) {
     try { await api.delete(`/pricing/rules/${id}`); toast('Rule deleted', 'info'); load() } catch (e) { setErr(apiErrorMessage(e)) }
@@ -131,14 +147,33 @@ export default function ShopPricing() {
 
           <Card className="h-fit p-5">
             <h3 className="flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4"/> New price rule</h3>
+            <p className="mt-1 text-xs text-slate-500">Set a price for each <b>paper × color × sides</b> combo you support. e.g. create separate rules for A4 BW Single, A4 COLOR Single, A3 BW Double, etc.</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div><Label>Paper</Label><Select value={newRule.paperSize} onChange={e => setNewRule(p => ({...p, paperSize: e.target.value}))}>{PAPERS.map(x => <option key={x}>{x}</option>)}</Select></div>
-              <div><Label>Color</Label><Select value={newRule.colorMode} onChange={e => setNewRule(p => ({...p, colorMode: e.target.value}))}><option value="BW">B&W</option><option value="COLOR">Color</option></Select></div>
-              <div><Label>Sides</Label><Select value={newRule.sidesMode} onChange={e => setNewRule(p => ({...p, sidesMode: e.target.value}))}><option value="SINGLE">Single</option><option value="DOUBLE">Double</option></Select></div>
+              <div><Label>Color</Label><Select value={newRule.colorMode} onChange={e => setNewRule(p => ({...p, colorMode: e.target.value as any}))}><option value="BW">B&W</option><option value="COLOR">Color</option></Select></div>
+              <div><Label>Sides</Label><Select value={newRule.sidesMode} onChange={e => setNewRule(p => ({...p, sidesMode: e.target.value as any}))}><option value="SINGLE">Single</option><option value="DOUBLE">Double</option></Select></div>
               <div><Label>₹ per page</Label><Input type="number" min={0.5} step={0.5} value={newRule.pricePerPage} onChange={e => setNewRule(p => ({...p, pricePerPage: Number(e.target.value)}))} /></div>
+              <div className="col-span-2"><Label>Effective from</Label><Input type="date" value={newRule.effectiveFrom} onChange={e => setNewRule(p => ({...p, effectiveFrom: e.target.value}))} /></div>
+              <div className="col-span-2"><Label>Special paper charge (optional)</Label><Input type="number" min={0} step={0.5} value={newRule.specialPaperCharge} onChange={e => setNewRule(p => ({...p, specialPaperCharge: Number(e.target.value)}))} placeholder="0" /></div>
             </div>
             <Button className="mt-4 w-full" loading={busy} disabled={!shopId} onClick={createRule}>Create rule</Button>
-            <p className="mt-2 text-xs text-slate-500">Admin min/max A4 B&W bounds are enforced server-side.</p>
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">Tip: Create at least one rule per type you print — e.g. A4 BW Single ₹2, A4 COLOR Single ₹8, A3 BW Double ₹4. Missing combos fall back to platform default.</div>
+            {rules && (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-slate-700">Coverage ({rules.length} rules)</p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {(() => {
+                    const have = new Set(rules.map(r => `${r.paperSize}-${r.colorMode}-${r.sidesMode}`))
+                    const combos = PAPERS.flatMap(p => COLORS.flatMap(c => SIDES.map(s => `${p}-${c}-${s}`)))
+                    return combos.slice(0,20).map(k => {
+                      const ok = have.has(k)
+                      return <span key={k} className={`rounded-full px-2 py-0.5 text-[10px] border ${ok?'bg-emerald-50 border-emerald-200 text-emerald-700':'bg-slate-50 border-slate-200 text-slate-400'}`}>{k.replaceAll('-',' · ')}{ok?' ✓':''}</span>
+                    })
+                  })()}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">Green = you set a price • grey = uses platform default</p>
+              </div>
+            )}
           </Card>
         </div>
       )}
