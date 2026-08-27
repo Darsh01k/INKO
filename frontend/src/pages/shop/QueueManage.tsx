@@ -8,13 +8,24 @@ export default function QueueManage() {
   const { settings, speak } = useSettings()
   const [shopId, setShopId] = useState('')
   const [shops, setShops] = useState<any[]>([])
+  const [shopsLoading, setShopsLoading] = useState(true)
   const [tokens, setTokens] = useState<any[]>([])
   const [err, setErr] = useState('')
   const [filter, setFilter] = useState('ALL')
   const [live, setLive] = useState(false)
+  const [newShopName, setNewShopName] = useState('')
+  const [newShopCity, setNewShopCity] = useState('')
+  const [creating, setCreating] = useState(false)
   const prevCompleted = useRef<Set<string>>(new Set())
 
-  useEffect(() => { api.get('/shops/mine').then(r => { setShops(r.data); if (r.data[0]) setShopId(r.data[0].id) }).catch(() => {}) }, [])
+  useEffect(() => {
+    setShopsLoading(true)
+    api.get('/shops/mine').then(r => {
+      const list = r.data ?? []
+      setShops(list)
+      if (list[0] && !shopId) setShopId(list[0].id)
+    }).catch(() => {}).finally(() => setShopsLoading(false))
+  }, [])
 
   async function load() {
     if (!shopId) return
@@ -30,7 +41,20 @@ export default function QueueManage() {
       setTokens(next); setLive(true)
     } catch (e: any) { setErr(apiErrorMessage(e)); setLive(false) }
   }
-  useEffect(() => { load(); const id = setInterval(load, 4000); return () => clearInterval(id) }, [shopId])
+  useEffect(() => { if (!shopId) return; load(); const id = setInterval(load, 4000); return () => clearInterval(id) }, [shopId])
+
+  async function createShop() {
+    const name = newShopName.trim()
+    if (!name) { setErr('Shop name is required'); return }
+    setCreating(true); setErr('')
+    try {
+      const r = await api.post('/shops', { name, city: newShopCity.trim() || undefined })
+      const created = r.data
+      setShops(prev => [...prev, created])
+      setShopId(created.id)
+      setNewShopName(''); setNewShopCity('')
+    } catch (e: any) { setErr(apiErrorMessage(e)) } finally { setCreating(false) }
+  }
 
   async function act(id: string, status: string) {
     try { await api.post(`/tokens/${id}/transition`, { targetStatus: status }); load() } catch (e: any) { setErr(apiErrorMessage(e)) }
@@ -92,13 +116,34 @@ export default function QueueManage() {
         </div>
       </div>
 
-      <Card className="p-4 flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium">Shop</span>
-        <Select value={shopId} onChange={e=>setShopId(e.target.value)} className="w-64">
-          {shops.map(s => <option key={s.id} value={s.id}>{s.name} — {s.city}</option>)}
-        </Select>
-        <span className="ml-auto text-xs text-slate-500 flex items-center gap-1.5"><Timer className="h-3.5 w-3.5"/> Polling every 4s</span>
-      </Card>
+      {shopsLoading ? (
+        <Card className="p-4 text-sm text-slate-500">Loading your shops…</Card>
+      ) : shops.length === 0 ? (
+        <Card className="p-6 border-amber-200 bg-amber-50/50">
+          <h3 className="text-sm font-semibold">No shop yet</h3>
+          <p className="mt-1 text-sm text-slate-600">Create your print shop first — queue, tokens and orders need a shop to attach to.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_160px_auto] sm:items-end">
+            <div><label className="text-xs font-medium text-slate-700">Shop name *</label><input value={newShopName} onChange={e=>setNewShopName(e.target.value)} placeholder="My Print Shop" className="mt-1 flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm" /></div>
+            <div><label className="text-xs font-medium text-slate-700">City</label><input value={newShopCity} onChange={e=>setNewShopCity(e.target.value)} placeholder="Pune" className="mt-1 flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm" /></div>
+            <Button onClick={createShop} loading={creating} className="h-10">Create shop</Button>
+          </div>
+        </Card>
+      ) : shops.length === 1 ? (
+        <Card className="p-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium">{shops[0].name}</span>
+          {shops[0].city && <span className="text-sm text-slate-500">— {shops[0].city}</span>}
+          <Badge tone={shops[0].status==='OPEN'?'success':'warning'} className="ml-2">{shops[0].status}</Badge>
+          <span className="ml-auto text-xs text-slate-500 flex items-center gap-1.5"><Timer className="h-3.5 w-3.5"/> Polling every 4s</span>
+        </Card>
+      ) : (
+        <Card className="p-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium">Shop</span>
+          <Select value={shopId} onChange={e=>setShopId(e.target.value)} className="w-64">
+            {shops.map(s => <option key={s.id} value={s.id}>{s.name} — {s.city}</option>)}
+          </Select>
+          <span className="ml-auto text-xs text-slate-500 flex items-center gap-1.5"><Timer className="h-3.5 w-3.5"/> Polling every 4s</span>
+        </Card>
+      )}
 
       {nextToken && (
         <Card className="overflow-hidden border-indigo-200">
