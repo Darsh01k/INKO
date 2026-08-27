@@ -227,14 +227,14 @@ export function Toaster() {
 // ── Stepper ──
 export function Stepper({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
       {steps.map((s, i) => (
         <React.Fragment key={s}>
-          <div className={cn('flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium border', i === current ? 'bg-[oklch(0.55_0.20_260)] text-white border-transparent shadow-sm' : i < current ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-500 border-slate-200')}>
-            <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold', i === current ? 'bg-white/20 text-white' : i < current ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500')}>{i < current ? '✓' : i + 1}</span>
-            {s}
+          <div className={cn('flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium border', i === current ? 'bg-[oklch(0.55_0.20_260)] text-white border-transparent shadow-sm' : i < current ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-500 border-slate-200')}>
+            <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold shrink-0', i === current ? 'bg-white/20 text-white' : i < current ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500')}>{i < current ? '✓' : i + 1}</span>
+            <span className="whitespace-nowrap">{s}</span>
           </div>
-          {i < steps.length - 1 && <div className={cn('h-px w-8', i < current ? 'bg-emerald-300' : 'bg-slate-200')} />}
+          {i < steps.length - 1 && <div className={cn('h-px w-6 sm:w-8 shrink-0', i < current ? 'bg-emerald-300' : 'bg-slate-200')} />}
         </React.Fragment>
       ))}
     </div>

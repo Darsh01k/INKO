@@ -25,9 +25,12 @@ export default function Configure() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const isLockedShop = !!qrShopId
   useEffect(() => { api.get('/shops').then(r => { setShops(r.data); if (!qrShopId && r.data[0]) setShopId(r.data[0].id); if (qrShopId) setShopId(qrShopId) }).catch(() => {}) }, [qrShopId])
 
   const selectedShop = shops.find(s=>s.id===shopId)
+
+  useEffect(()=>{ if (shopId && docs.length){ const t=setTimeout(()=>{ preview() }, 600); return ()=>clearTimeout(t) } }, [shopId, paper, color, sides, copies, pages])
 
   // Expands selections like "1-5,8,10-12" into a true page total — mirrors backend parsing
   function countPages(sel: string, total: number) {
@@ -105,15 +108,26 @@ export default function Configure() {
           </div>
 
           <Card className="p-5 sm:p-6">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><Store className="h-4 w-4"/> Shop</h3>
-            <div className="mt-3">
-              <Label>Choose shop</Label>
-              <Select value={shopId} onChange={e=>setShopId(e.target.value)}>
-                <option value="">Select shop</option>
-                {shops.map(s=> <option key={s.id} value={s.id}>{s.name} — {s.city} ({s.status})</option>)}
-              </Select>
-              {selectedShop && <p className="mt-2 text-xs text-slate-500">{selectedShop.name} — {selectedShop.city} • {selectedShop.supportsColor ? 'Color supported' : 'B&W only'}</p>}
-            </div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Store className="h-4 w-4"/> {isLockedShop ? 'Shop — locked from QR' : 'Shop'}</h3>
+            {isLockedShop ? (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+                <Store className="h-5 w-5 text-emerald-700"/>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">{selectedShop ? `${selectedShop.name} — ${selectedShop.city ?? ''}` : `Shop ${qrShopId?.slice(0,8)}`}</p>
+                  <p className="text-xs text-emerald-700">QR locked — your print will go only to this shop. No need to choose.</p>
+                </div>
+                <Badge tone="success" className="ml-auto">QR</Badge>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <Label>Choose shop</Label>
+                <Select value={shopId} onChange={e=>setShopId(e.target.value)}>
+                  <option value="">Select shop</option>
+                  {shops.map(s=> <option key={s.id} value={s.id}>{s.name} — {s.city} ({s.status})</option>)}
+                </Select>
+                {selectedShop && <p className="mt-2 text-xs text-slate-500">{selectedShop.name} — {selectedShop.city} • {selectedShop.supportsColor ? 'Color supported' : 'B&W only'}</p>}
+              </div>
+            )}
             {docs.length>0 && (
               <div className="mt-4 grid gap-2">
                 {docs.slice(0,3).map((d,i)=>(
@@ -129,24 +143,25 @@ export default function Configure() {
           </Card>
 
           <Card className="p-5 sm:p-6">
-            <h3 className="text-sm font-semibold">Print options</h3>
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <h3 className="text-sm font-semibold">Print options — keep it simple</h3>
+            <p className="text-xs text-slate-500">First time? Just choose paper & copies — we handle the rest. Price shows instantly.</p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="text-sm">
-                <span className="mb-1.5 flex items-center gap-1.5 font-medium text-slate-700"><Layers className="h-3.5 w-3.5"/> Paper</span>
+                <span className="mb-1.5 flex items-center gap-1.5 font-medium text-slate-700"><Layers className="h-3.5 w-3.5"/> Paper size</span>
                 <Select value={paper} onChange={e=>setPaper(e.target.value)}>
-                  <option>A4</option><option>A3</option><option>A5</option><option>LETTER</option><option>LEGAL</option>
+                  <option value="A4">A4 — most common</option><option value="A3">A3</option><option value="A5">A5</option><option value="LETTER">LETTER</option><option value="LEGAL">LEGAL</option>
                 </Select>
               </label>
               <label className="text-sm">
                 <span className="mb-1.5 flex items-center gap-1.5 font-medium text-slate-700"><Palette className="h-3.5 w-3.5"/> Color</span>
                 <Select value={color} onChange={e=>setColor(e.target.value)}>
-                  <option value="BW">B&W</option><option value="COLOR">Color</option>
+                  <option value="BW">Black & white (cheaper)</option><option value="COLOR">Color</option>
                 </Select>
               </label>
               <label className="text-sm">
-                <span className="mb-1.5 flex items-center gap-1.5 font-medium text-slate-700"><BookOpen className="h-3.5 w-3.5"/> Sides</span>
+                <span className="mb-1.5 flex items-center gap-1.5 font-medium text-slate-700"><BookOpen className="h-3.5 w-3.5"/> Print on</span>
                 <Select value={sides} onChange={e=>setSides(e.target.value)}>
-                  <option value="SINGLE">Single</option><option value="DOUBLE">Double</option>
+                  <option value="SINGLE">One side</option><option value="DOUBLE">Both sides</option>
                 </Select>
               </label>
               <label className="text-sm">
@@ -156,9 +171,9 @@ export default function Configure() {
             </div>
 
             <div className="mt-4">
-              <Label>Pages <span className="font-normal text-slate-500">(e.g. ALL or 1-5,8,10-12)</span></Label>
+              <Label>Pages to print <span className="font-normal text-slate-500">— leave ALL for everything</span></Label>
               <Input value={pages} onChange={e=>setPages(e.target.value)} placeholder="ALL" />
-              <p className="mt-1 text-xs text-slate-500">Blank pages detected will be skipped if you keep ALL</p>
+              <p className="mt-1 text-xs text-slate-500">Tip: need only pages 1-5? Type 1-5. Blank pages auto-skipped.</p>
             </div>
           </Card>
 
@@ -174,15 +189,24 @@ export default function Configure() {
 
           {err && <Alert>{err}</Alert>}
 
+          {quote && (
+            <Card className="border-emerald-200 bg-emerald-50 p-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs tracking-widest text-emerald-700 font-semibold">YOU PAY — BEFORE PRINTING</p>
+                <p className="text-2xl font-black text-emerald-900">₹{quote.finalAmount ?? quote.total ?? '—'} <span className="text-sm font-medium text-emerald-700">{quote.currency ?? 'INR'}</span></p>
+                <p className="text-xs text-emerald-700">For {countPages(pages, docs[0]?.pages ?? docs[0]?.pageCount ?? 5)} pages × {copies} copies • includes taxes</p>
+              </div>
+              <Button onClick={proceed} size="lg" loading={loading} className="shrink-0">Yes, print — Confirm <ArrowRight className="h-4 w-4"/></Button>
+            </Card>
+          )}
+
           <div className="flex gap-3">
-            <Button onClick={preview} size="lg" loading={loading} className="flex-1 sm:flex-none">
-              <Calculator className="h-4 w-4" /> Price preview
+            <Button onClick={preview} size="lg" loading={loading} variant={quote?'secondary':'primary'} className="flex-1">
+              <Calculator className="h-4 w-4" /> {quote ? 'Refresh price' : 'See price'}
             </Button>
-            <Button onClick={proceed} variant="secondary" size="lg" className="flex-1 sm:flex-none" loading={loading}>
-              Confirm & print <ArrowRight className="h-4 w-4" />
-            </Button>
+            {!quote && <Button onClick={proceed} variant="secondary" size="lg" className="flex-1" loading={loading}>Confirm & print <ArrowRight className="h-4 w-4" /></Button>}
           </div>
-          <p className="text-xs text-slate-500">Coupon is optional — leave blank to skip. Confirm works without Apply.</p>
+          <p className="text-xs text-slate-500 text-center">Simple: upload → choose paper → see price → confirm. No hidden steps.</p>
         </div>
 
         {/* Right - sticky price card */}

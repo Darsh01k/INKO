@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
 import { Card, Button, Input, Label, Badge, Dialog } from '@/components/ui'
-import { Store, Plus, Pencil, Trash2, MapPin, Save, Boxes, Check, XCircle } from 'lucide-react'
+import { Store, Plus, Pencil, Trash2, MapPin, Save, Boxes, XCircle } from 'lucide-react'
 import MapPicker from '@/components/MapPicker'
 
 type Shop = {
@@ -25,38 +25,44 @@ export default function ShopManage() {
   const [showEditMap, setShowEditMap] = useState(false)
   const [resourceShop, setResourceShop] = useState<Shop | null>(null)
   const [inventory, setInventory] = useState<any[] | null>(null)
-  const [resBusy, setResBusy] = useState<string | null>(null)
+  const [staged, setStaged] = useState<any[] | null>(null)
+  const [resBusy, setResBusy] = useState(false)
 
   function load() {
     setErr('')
     api.get('/shops/mine').then(r=>setShops(r.data ?? [])).catch(e=>setErr(apiErrorMessage(e)))
   }
   function loadInventory(shopId: string){
-    setInventory(null)
-    api.get(`/shops/${shopId}/inventory`).then(r=>setInventory(r.data ?? [])).catch(e=>setErr(apiErrorMessage(e)))
+    setInventory(null); setStaged(null)
+    api.get(`/shops/${shopId}/inventory`).then(r=>{ const list=r.data??[]; setInventory(list); setStaged(list.map((x:any)=>({...x}))) }).catch(e=>setErr(apiErrorMessage(e)))
   }
   function openResources(s: Shop){
     setResourceShop(s); loadInventory(s.id)
   }
-  async function togglePaper(paperSize: string, enable: boolean){
-    if (!resourceShop) return
-    setResBusy(paperSize)
-    try {
-      if (enable){
-        await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize, gsm: 80, quantitySheets: 200, lowStockThreshold: 20, isAvailable: true })
-      } else {
-        const row = inventory?.find(r=>r.paperSize===paperSize)
-        if (row) await api.delete(`/shops/${resourceShop.id}/inventory/${row.id}`)
-      }
-      loadInventory(resourceShop.id)
-    } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
+  function togglePaperStaged(paperSize: string, enable: boolean){
+    setStaged(prev=>{
+      if (!prev) return prev
+      const idx = prev.findIndex(r=>r.paperSize===paperSize)
+      if (enable && idx===-1) return [...prev, { id:`tmp-${paperSize}`, paperSize, gsm:80, quantitySheets:200, lowStockThreshold:20, isAvailable:true }]
+      if (!enable && idx!==-1) return prev.filter(r=>r.paperSize!==paperSize)
+      return prev
+    })
   }
-  async function updateQty(row: any, nextQty: number){
-    if (!resourceShop) return
-    const next = Math.max(0, nextQty)
-    const remindAt = Math.max(5, Math.min(100, Math.round(next > 20 ? 20 : Math.max(5, next * 0.1))))
-    setResBusy(row.id)
-    try { await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize: row.paperSize, gsm: row.gsm, quantitySheets: next, lowStockThreshold: remindAt, isAvailable: true }); loadInventory(resourceShop.id) } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
+  function updateStagedQty(paperSize: string, nextQty: number){
+    setStaged(prev=> prev ? prev.map(r=> r.paperSize===paperSize ? { ...r, quantitySheets: Math.max(0,nextQty), lowStockThreshold: Math.max(5, Math.min(20, Math.round(Math.max(0,nextQty) >20 ? 20 : Math.max(5, Math.max(0,nextQty)*0.1)))) } : r) : prev)
+  }
+  async function saveResources(){
+    if (!resourceShop || !staged || !inventory) return
+    setResBusy(true); setErr('')
+    const toDelete = inventory.filter(o=> !staged.some(s=>s.paperSize===o.paperSize))
+    const toCreateOrUpdate = staged
+    try {
+      const ops: Promise<any>[] = []
+      for (const del of toDelete) ops.push(api.delete(`/shops/${resourceShop.id}/inventory/${del.id}`))
+      for (const row of toCreateOrUpdate) ops.push(api.put(`/shops/${resourceShop.id}/inventory`, { paperSize: row.paperSize, gsm: row.gsm ?? 80, quantitySheets: row.quantitySheets, lowStockThreshold: row.lowStockThreshold ?? 20, isAvailable: true }))
+      await Promise.all(ops)
+      setResourceShop(null); setStaged(null); setInventory(null)
+    } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(false) }
   }
   useEffect(()=>{ load() },[])
 
@@ -236,18 +242,18 @@ export default function ShopManage() {
       <Dialog open={!!resourceShop} onClose={()=>setResourceShop(null)} title={resourceShop ? `Resources — ${resourceShop.name}` : 'Resources'}>
         {resourceShop && (
           <div className="space-y-3">
-            <p className="text-xs text-slate-500">Tick what you offer, then type <b>how many sheets left</b>. We'll remind you <b>20 sheets before</b> you run out (or 10% if stock is small) so you can reorder — no need for exact count, just your best guess.</p>
-            {inventory===null ? <p className="text-sm text-slate-500">Loading…</p> : (
-              <div className="grid gap-2">
+            <p className="text-xs text-slate-500">Tick what you offer, then type <b>how many sheets left</b>. We'll remind you <b>20 sheets before</b> you run out. Changes save only when you click <b>Done</b>.</p>
+            {staged===null ? <p className="text-sm text-slate-500">Loading…</p> : (
+              <div className="grid gap-2 max-h-[50vh] overflow-y-auto pr-1">
                 {PAPERS_ALL.map(p=>{
-                  const row = inventory.find(r=>r.paperSize===p)
+                  const row = staged.find(r=>r.paperSize===p)
                   const enabled = !!row
                   const low = row && row.quantitySheets <= row.lowStockThreshold
                   return (
                     <div key={p} className={`rounded-xl border p-3 ${enabled?'bg-white border-slate-200':'bg-slate-50 border-dashed border-slate-200 opacity-75'}`}>
                       <div className="flex items-center justify-between">
                         <label className="flex items-center gap-2 text-sm font-medium">
-                          <input type="checkbox" checked={enabled} onChange={e=>togglePaper(p, e.target.checked)} disabled={!!resBusy} className="h-4 w-4 rounded" />
+                          <input type="checkbox" checked={enabled} onChange={e=>togglePaperStaged(p, e.target.checked)} className="h-4 w-4 rounded" />
                           {p} {row?.gsm ? `· ${row.gsm}gsm` : ''}
                         </label>
                         {!enabled ? <span className="text-xs text-slate-400">Not offered</span> : <Badge tone={low?'warning':'success'} className="ml-1">{low ? `Low — ${row.quantitySheets} left` : `${row.quantitySheets} sheets`}</Badge>}
@@ -256,10 +262,10 @@ export default function ShopManage() {
                         <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 items-end">
                           <div>
                             <Label>Paper left (sheets)</Label>
-                            <Input type="number" min={0} value={row.quantitySheets} onChange={e=>updateQty(row, Number(e.target.value) || 0)} placeholder="e.g. 200" />
-                            <p className="text-[11px] text-slate-500 mt-1">Remind when ≤ {row.lowStockThreshold} sheets ({row.lowStockThreshold} = 20 before empty). Just update this number when you restock.</p>
+                            <Input type="number" min={0} value={row.quantitySheets} onChange={e=>updateStagedQty(p, Number(e.target.value) || 0)} placeholder="e.g. 200" />
+                            <p className="text-[11px] text-slate-500 mt-1">Remind when ≤ {row.lowStockThreshold} sheets. Just update this number when you restock.</p>
                           </div>
-                          <Button size="sm" variant="ghost" onClick={()=>togglePaper(p,false)} className="h-10"><XCircle className="h-3.5 w-3.5"/> Remove</Button>
+                          <Button size="sm" variant="ghost" onClick={()=>togglePaperStaged(p,false)} className="h-10"><XCircle className="h-3.5 w-3.5"/> Remove</Button>
                         </div>
                       )}
                     </div>
@@ -267,7 +273,7 @@ export default function ShopManage() {
                 })}
               </div>
             )}
-            <div className="flex justify-end"><Button variant="secondary" onClick={()=>setResourceShop(null)}><Check className="h-4 w-4"/> Done</Button></div>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={()=>setResourceShop(null)}>Cancel</Button><Button onClick={saveResources} loading={resBusy}><Save className="h-4 w-4"/> Done — Save</Button></div>
           </div>
         )}
       </Dialog>

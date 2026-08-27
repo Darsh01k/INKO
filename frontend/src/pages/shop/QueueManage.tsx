@@ -41,7 +41,7 @@ export default function QueueManage() {
       setTokens(next); setLive(true)
     } catch (e: any) { setErr(apiErrorMessage(e)); setLive(false) }
   }
-  useEffect(() => { if (!shopId) return; load(); const id = setInterval(load, 4000); return () => clearInterval(id) }, [shopId])
+  useEffect(() => { if (!shopId) return; load(); const id = setInterval(load, 2500); return () => clearInterval(id) }, [shopId])
 
   async function createShop() {
     const name = newShopName.trim()
@@ -75,11 +75,19 @@ export default function QueueManage() {
   const filtered = tokens.filter(t=> filter==='ALL' || String(t.status).toUpperCase()===filter)
   const nextToken = tokens[0]
 
-  // Only transitions the backend token state machine allows (TokenStatus.canTransitionTo)
   const NEXT_ACTION: Record<string, { label: string; target: string; tone?: string } | null> = {
-    WAITING: { label: 'Call', target: 'CALLED' },
-    CALLED: { label: 'Start printing', target: 'PRINTING' },
-    PRINTING: { label: 'Complete', target: 'COMPLETED', tone: 'emerald' },
+    WAITING: { label: 'Call customer', target: 'CALLED' },
+    CALLED: { label: 'Printing started', target: 'PRINTING' },
+    PRINTING: { label: 'Hand over — done', target: 'COMPLETED', tone: 'emerald' },
+  }
+  const friendlyStatus = (s:string)=>{
+    const u = s.toUpperCase()
+    if (u==='WAITING') return 'In queue'
+    if (u==='CALLED') return 'Your turn'
+    if (u==='PRINTING') return 'Printing…'
+    if (u==='COMPLETED') return 'Ready to collect'
+    if (u==='FAILED') return 'Needs attention'
+    return s
   }
   function advanceActions(status: string) {
     return NEXT_ACTION[String(status).toUpperCase()] ?? null
@@ -168,7 +176,7 @@ export default function QueueManage() {
             <div className="text-center">
               <p className="text-xs tracking-widest text-slate-500">NOW SERVING</p>
               <p className="text-6xl font-black tracking-tighter leading-none">{nextToken.tokenNumber ?? '—'}</p>
-              <Badge tone="brand" className="mt-2">{nextToken.status}</Badge>
+              <Badge tone="brand" className="mt-2">{friendlyStatus(nextToken.status)}</Badge>
             </div>
             <div className="text-center lg:text-left">
               <p className="text-sm text-slate-500">{nextToken.type ?? 'PRINT'} • Shop {shopId.slice(0,8)}</p>
@@ -193,7 +201,7 @@ export default function QueueManage() {
               <span className="flex h-12 w-16 items-center justify-center rounded-xl bg-slate-900 text-lg font-black tracking-tight text-white">{t.tokenNumber}</span>
               <div>
                 <p className="text-sm font-semibold flex items-center gap-2">
-                  {t.tokenNumber} <Badge tone={String(t.status)==='WAITING'?'warning':String(t.status)==='PRINTING'?'brand':String(t.status)==='COMPLETED'?'success':'neutral'}>{t.status}</Badge>
+                  {t.tokenNumber} <Badge tone={String(t.status)==='WAITING'?'warning':String(t.status)==='PRINTING'?'brand':String(t.status)==='COMPLETED'?'success':'neutral'}>{friendlyStatus(t.status)}</Badge>
                 </p>
                 <p className="text-xs text-slate-500 flex items-center gap-1.5"><Radio className="h-3 w-3"/> {t.type} • #{String(t.id).slice(0,6)}</p>
                 {t.customerName && <p className="mt-0.5 text-xs font-medium text-indigo-700">👤 {t.customerName}{t.orderNumber ? <span className="mono text-slate-400"> • {t.orderNumber}</span> : null}</p>}

@@ -76,10 +76,22 @@ export default function ShopPricing() {
     return m
   },[rules])
 
+  function stateAdj(): number {
+    const st = (shops.find(s=>s.id===shopId)?.city ?? shops.find(s=>s.id===shopId)?.state ?? '').toLowerCase()
+    if (['mumbai','pune','maharashtra'].some(k=>st.includes(k))) return 0.1
+    if (['delhi','noida','gurgaon'].some(k=>st.includes(k))) return 0.12
+    if (['bengaluru','karnataka'].some(k=>st.includes(k))) return 0.08
+    return 0
+  }
+  function marketWithState(paper:string, color:string, sides:string){
+    const base = marketPrice(paper,color,sides)
+    const adj = stateAdj()
+    return Math.round(base * (1+adj) * 2)/2
+  }
   async function saveAll(){
     if (!shopId) return
     setSavingAll(true); setErr('')
-    let ok=0, fail=0
+    const tasks: Promise<void>[] = []
     for (const paper of PAPERS) for (const c of COLORS) for (const s of SIDES){
       const k = keyOf(paper,c,s)
       const e = edits[k]
@@ -88,15 +100,15 @@ export default function ShopPricing() {
       if (isNaN(price) || price < 0) continue
       const existing = ruleByKey.get(k)
       const payload:any = { scope:'SHOP', shopId, paperSize: paper, colorMode: c, sidesMode: s, pricePerPage: price, effectiveFrom: e.effectiveFrom || todayIso(), active: true }
-      try {
-        if (existing) await api.put(`/pricing/rules/${existing.id}`, payload)
-        else await api.post('/pricing/rules', payload)
-        ok++
-      } catch { fail++ }
+      const p = (existing ? api.put(`/pricing/rules/${existing.id}`, payload) : api.post('/pricing/rules', payload)).then(()=>{},()=>{ throw new Error(k) })
+      tasks.push(p.catch(()=>{}))
     }
+    const results = await Promise.allSettled(tasks)
+    const ok = results.filter(r=>r.status==='fulfilled').length
+    const fail = results.length - ok
     setSavingAll(false)
-    if (fail===0) toast(`Saved ${ok} prices`, 'success')
-    else toast(`Saved ${ok}, ${fail} failed — check errors`, fail ? 'error' : 'success')
+    if (fail===0) toast(`Saved ${ok} prices — all done`, 'success')
+    else toast(`Saved ${ok}, ${fail} failed`, fail ? 'error' : 'success')
     setShowKeepBanner(false)
     load()
   }
@@ -176,7 +188,7 @@ export default function ShopPricing() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs tracking-widest text-slate-500">
-                  <tr><th className="px-3 py-2.5 text-left">Paper</th><th className="px-3 py-2.5 text-left">Color</th><th className="px-3 py-2.5 text-left">Sides</th><th className="px-3 py-2.5 text-left w-32">₹/page *</th><th className="px-3 py-2.5 text-left w-36">Effective from</th><th className="px-3 py-2.5 text-left">Status</th><th className="px-3 py-2.5 text-right"></th></tr>
+                  <tr><th className="px-3 py-2.5 text-left">Paper</th><th className="px-3 py-2.5 text-left">Color</th><th className="px-3 py-2.5 text-left">Sides</th><th className="px-3 py-2.5 text-left w-28">Market</th><th className="px-3 py-2.5 text-left w-32">Your ₹/page *</th><th className="px-3 py-2.5 text-left w-36">Effective from</th><th className="px-3 py-2.5 text-left">Status</th><th className="px-3 py-2.5 text-right"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {PAPERS.flatMap(paper=>COLORS.flatMap(color=>SIDES.map(sides=>{
@@ -189,9 +201,10 @@ export default function ShopPricing() {
                         <td className="px-3 py-2 font-medium">{paper}</td>
                         <td className="px-3 py-2"><Badge tone={color==='COLOR'?'brand':'neutral'}>{color}</Badge></td>
                         <td className="px-3 py-2 text-slate-500 text-xs">{sides}</td>
+                        <td className="px-3 py-2 text-slate-600 text-xs">₹{marketWithState(paper,color,sides)}<span className="text-[10px] text-slate-400"> • India</span></td>
                         <td className="px-3 py-2"><Input type="number" min={0} step={0.5} value={e.price} onChange={ev=>setEdits(prev=>({...prev,[k]:{...prev[k], price: ev.target.value}}))} className="h-8" /></td>
                         <td className="px-3 py-2"><Input type="date" value={e.effectiveFrom} onChange={ev=>setEdits(prev=>({...prev,[k]:{...prev[k], effectiveFrom: ev.target.value}}))} className="h-8" /></td>
-                        <td className="px-3 py-2">{isExisting ? <Badge tone="success">₹{existing!.pricePerPage}</Badge> : <Badge tone="warning">market ₹{marketPrice(paper,color,sides)}</Badge>}</td>
+                        <td className="px-3 py-2">{isExisting ? <Badge tone="success">₹{existing!.pricePerPage}</Badge> : <Badge tone="warning">suggested</Badge>}</td>
                         <td className="px-3 py-2 text-right">{isExisting && <Button size="sm" variant="ghost" onClick={()=>deleteRule(existing!.id)}><Trash2 className="h-3.5 w-3.5"/></Button>}</td>
                       </tr>
                     )
