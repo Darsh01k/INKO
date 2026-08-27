@@ -56,8 +56,20 @@ export default function QueueManage() {
     } catch (e: any) { setErr(apiErrorMessage(e)) } finally { setCreating(false) }
   }
 
+  const [acting, setActing] = useState<string | null>(null)
   async function act(id: string, status: string) {
-    try { await api.post(`/tokens/${id}/transition`, { targetStatus: status }); load() } catch (e: any) { setErr(apiErrorMessage(e)) }
+    if (acting) return
+    setActing(id + ':' + status); setErr('')
+    try {
+      await api.post(`/tokens/${id}/transition`, { targetStatus: status })
+      await load()
+    } catch (e: any) {
+      const msg = apiErrorMessage(e)
+      if (msg.includes('Invalid transition') && msg.includes('COMPLETED')) {
+        setErr('Already completed — refreshing queue')
+        await load()
+      } else setErr(msg)
+    } finally { setActing(null) }
   }
 
   const filtered = tokens.filter(t=> filter==='ALL' || String(t.status).toUpperCase()===filter)
@@ -77,12 +89,17 @@ export default function QueueManage() {
   }
 
   function ActionButtons({ t, size }: { t: any; size: 'lg' | 'sm' }) {
+    const st = String(t.status).toUpperCase()
+    if (st === 'COMPLETED' || st === 'CANCELLED' || st === 'FAILED') return <Badge tone={st==='COMPLETED'?'success':st==='FAILED'?'danger':'neutral'}>{st}</Badge>
     const next = advanceActions(t.status)
+    const busy = acting !== null
     return (
       <>
         {next && (
           <Button
             size={size}
+            disabled={busy}
+            loading={acting === t.id+':'+next.target}
             variant={next.tone === 'emerald' ? 'secondary' : size === 'lg' ? 'primary' : 'secondary'}
             className={next.tone === 'emerald' ? 'bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600' : ''}
             onClick={() => act(t.id, next.target)}
@@ -92,8 +109,8 @@ export default function QueueManage() {
         )}
         {canClose(t.status) && (
           <>
-            <Button size={size} variant="ghost" onClick={() => act(t.id, 'FAILED')}><AlertTriangle className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/>Fail</Button>
-            <Button size={size} variant="ghost" onClick={() => act(t.id, 'CANCELLED')}><XCircle className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/>Cancel</Button>
+            <Button size={size} variant="ghost" disabled={busy} onClick={() => act(t.id, 'FAILED')}><AlertTriangle className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/>Fail</Button>
+            <Button size={size} variant="ghost" disabled={busy} onClick={() => act(t.id, 'CANCELLED')}><XCircle className={size==='sm'?'h-3.5 w-3.5':'h-4 w-4'}/>Cancel</Button>
           </>
         )}
       </>

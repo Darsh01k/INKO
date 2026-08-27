@@ -18,9 +18,10 @@ public class TokenService {
     private final TokenRepository tokens;
     private final TokenSequenceRepository sequences;
     private final QueueEntryRepository queue;
+    private final com.inko.orders.repo.OrderRepository ordersRepo;
 
-    public TokenService(TokenRepository tokens, TokenSequenceRepository sequences, QueueEntryRepository queue) {
-        this.tokens = tokens; this.sequences = sequences; this.queue = queue;
+    public TokenService(TokenRepository tokens, TokenSequenceRepository sequences, QueueEntryRepository queue, com.inko.orders.repo.OrderRepository ordersRepo) {
+        this.tokens = tokens; this.sequences = sequences; this.queue = queue; this.ordersRepo = ordersRepo;
     }
 
     @Transactional
@@ -99,7 +100,18 @@ public class TokenService {
 
     @Transactional(readOnly = true)
     public int estimatedWaitMinutes(UUID shopId, UUID tokenId) {
-        long ahead = waitingAhead(shopId, tokenId);
-        return (int) (ahead * 4) + 2;
+        Token me = tokens.findById(tokenId).orElse(null);
+        if (me == null) return 2;
+        List<Token> aheadTokens = tokens.findQueue(shopId, me.getTokenDate(), List.of(TokenStatus.WAITING)).stream()
+                .filter(t -> t.getPriority() < me.getPriority() || (t.getPriority() == me.getPriority() && t.getIssuedAt().isBefore(me.getIssuedAt())))
+                .toList();
+        int pagesAhead = 0;
+        for (Token t : aheadTokens) {
+            if (t.getOrderId() != null) pagesAhead += ordersRepo.findById(t.getOrderId()).map(o -> o.getTotalPages()).orElse(2);
+        }
+        int myPages = me.getOrderId() == null ? 2 : ordersRepo.findById(me.getOrderId()).map(o -> o.getTotalPages()).orElse(5);
+        double perPageMin = 0.4;
+        double basePerJob = 1.0;
+        return (int) Math.max(1, Math.round(pagesAhead * perPageMin + aheadTokens.size() * basePerJob + myPages * perPageMin * 0.5));
     }
 }

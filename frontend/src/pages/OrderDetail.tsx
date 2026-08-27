@@ -34,11 +34,16 @@ export default function OrderDetail() {
   const [category, setCategory] = useState('POOR_QUALITY')
   const [description, setDescription] = useState('')
 
+  const [tokenLive, setTokenLive] = useState<any>(null)
   function loadAll() {
-    api.get(`/orders/${id}`).then(r => setData(r.data)).catch(e => setErr(apiErrorMessage(e)))
+    api.get(`/orders/${id}`).then(r => { setData(r.data); const shop = r.data?.order?.shopId ?? r.data?.shopId ?? r.data?.shop_id; const tshop = shop; if (tshop && r.data?.order?.id) {
+      api.get(`/tokens/${r.data.order?.id ?? r.data.id}/wait`, { params: { shopId: tshop }}).then(tr=>setTokenLive(tr.data)).catch(()=>{})
+      api.get(`/tokens/${r.data.order?.id ?? r.data.id}`).then(tr=>setTokenLive((prev:any)=>({...prev, ...tr.data}))).catch(()=>{})
+    } else if (r.data?.order?.id) { api.get(`/tokens/${r.data.order.id}`).then(tr=>setTokenLive(tr.data)).catch(()=>{}) }
+    }).catch(e => setErr(apiErrorMessage(e)))
     api.get(`/orders/${id}/refunds`).then(r => setRefunds(Array.isArray(r.data) ? r.data : [])).catch(() => {})
   }
-  useEffect(() => { loadAll() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [id])
+  useEffect(() => { loadAll(); const iv = setInterval(loadAll, 3000); return ()=>clearInterval(iv) /* eslint-disable-line react-hooks/exhaustive-deps */ }, [id])
 
   async function requestRefund() {
     setPayBusy('refund'); setPayMsg('')
@@ -141,6 +146,14 @@ export default function OrderDetail() {
             ))}
           </div>
         </div>
+        {tokenLive && (
+          <div className="mx-6 mb-4 rounded-xl border px-4 py-3 text-sm flex items-center gap-2 bg-slate-50 border-slate-200">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"/>
+            <span className="font-medium">Live:</span>
+            <Badge tone={String(tokenLive.status).toUpperCase()==='PRINTING'?'brand': String(tokenLive.status).toUpperCase()==='COMPLETED'?'success': String(tokenLive.status).toUpperCase()==='CALLED'?'warning':'neutral'}>{String(tokenLive.status).toUpperCase()==='WAITING'?'Waiting': String(tokenLive.status).toUpperCase()==='CALLED'?'Called — go to counter': String(tokenLive.status).toUpperCase()==='PRINTING'?'Printing started…': String(tokenLive.status).toUpperCase()==='COMPLETED'?'Print completed — collect your print': tokenLive.status}</Badge>
+            {tokenLive.estimatedWaitMinutes != null && <span className="text-xs text-slate-500">Est. {tokenLive.estimatedWaitMinutes} min • {tokenLive.totalPages ? `${tokenLive.totalPages} pages` : ''} • auto-refresh 3s</span>}
+          </div>
+        )}
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">

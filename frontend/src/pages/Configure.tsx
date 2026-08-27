@@ -46,23 +46,27 @@ export default function Configure() {
   }
 
   async function preview() {
-    if (!shopId) { setErr('Select a shop'); return }
+    if (!shopId) { setErr('Select a shop'); return null }
     setLoading(true); setErr('')
     const docPages = docs[0]?.pages ?? docs[0]?.pageCount ?? 5
     const parsedPages = countPages(pages, docPages)
     try {
-      const res = await api.post('/pricing/quote', { shopId, paperSize: paper, colorMode: color, sidesMode: sides, pages: parsedPages, copies, specialPaper: false, couponCode: coupon || undefined })
-      setQuote(res.data); setCouponApplied(coupon || null)
-    } catch (e: any) { setErr(apiErrorMessage(e)) } finally { setLoading(false) }
+      const res = await api.post('/pricing/quote', { shopId, paperSize: paper, colorMode: color, sidesMode: sides, pages: parsedPages, copies, specialPaper: false, couponCode: coupon.trim() ? coupon.trim().toUpperCase() : undefined })
+      setQuote(res.data); setCouponApplied(coupon.trim() ? coupon.trim().toUpperCase() : null)
+      return res.data
+    } catch (e: any) { setErr(apiErrorMessage(e)); return null } finally { setLoading(false) }
   }
 
   async function proceed() {
-    if (!quote) { setErr('Get a price preview first'); return }
     const docIds = docs.map((d: any) => d.id ?? d.documentId) as string[]
     if (!docIds.length || docIds[0]==null) { setErr('No documents — go back and upload again'); return }
+    if (!shopId) { setErr('Select a shop'); return }
+    let q = quote
+    if (!q) q = await preview()
+    if (!q) return
     const payload = {
       shopId,
-      couponCode: coupon || undefined,
+      couponCode: coupon.trim() ? coupon.trim().toUpperCase() : undefined,
       items: docIds.map(id => ({ documentId: id, paperSize: paper, colorMode: color, sidesMode: sides, orientation: 'AUTO', pageSelection: pages, copies }))
     }
     setLoading(true)
@@ -159,13 +163,13 @@ export default function Configure() {
           </Card>
 
           <Card className="p-5 sm:p-6">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><Tag className="h-4 w-4"/> Coupon</h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Tag className="h-4 w-4"/> Coupon <span className="font-normal text-slate-400">— optional</span></h3>
             <div className="mt-3 flex gap-2">
-              <Input value={coupon} onChange={e=>setCoupon(e.target.value.toUpperCase().trim())} placeholder="SAVE20" className="uppercase tracking-widest font-mono" />
+              <Input value={coupon} onChange={e=>setCoupon(e.target.value.toUpperCase())} placeholder="SAVE20 (leave blank to skip)" className="uppercase tracking-widest font-mono" />
               <Button variant="secondary" onClick={preview} loading={loading}>Apply</Button>
             </div>
-            {couponApplied && <p className="mt-2 text-xs text-emerald-700">Applied: {couponApplied}</p>}
-            <p className="mt-2 text-xs text-slate-500">Coupons are validated on price preview.</p>
+            {couponApplied ? <p className="mt-2 text-xs text-emerald-700">Applied: {couponApplied}</p> : <p className="mt-2 text-xs text-slate-400">Optional — confirm works without coupon</p>}
+            <p className="mt-1 text-xs text-slate-500">Coupons validated on preview; you can confirm directly.</p>
           </Card>
 
           {err && <Alert>{err}</Alert>}
@@ -174,10 +178,11 @@ export default function Configure() {
             <Button onClick={preview} size="lg" loading={loading} className="flex-1 sm:flex-none">
               <Calculator className="h-4 w-4" /> Price preview
             </Button>
-            <Button onClick={proceed} disabled={!quote} variant="secondary" size="lg" className="flex-1 sm:flex-none">
-              Confirm & create order <ArrowRight className="h-4 w-4" />
+            <Button onClick={proceed} variant="secondary" size="lg" className="flex-1 sm:flex-none" loading={loading}>
+              Confirm & print <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
+          <p className="text-xs text-slate-500">Coupon is optional — leave blank to skip. Confirm works without Apply.</p>
         </div>
 
         {/* Right - sticky price card */}

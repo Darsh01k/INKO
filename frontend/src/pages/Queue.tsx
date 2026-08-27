@@ -36,7 +36,14 @@ export default function Queue() {
 
   const waiting = tokens.filter(t=> ['WAITING','QUEUED','PENDING'].includes(String(t.status).toUpperCase()))
   const position = mine ? Math.max(1, waiting.findIndex(t=> String(t.id)===String(mine.id))+1 || waiting.length+1) : null
-  const estimate = position ? `${Math.max(2, position*3)} min` : '—'
+  const estimate = (() => {
+    if (!mine || !position) return '—'
+    const myPages = mine.totalPages ?? mine.total_pages ?? 5
+    const aheadTokens = waiting.slice(0, position-1)
+    const pagesAhead = aheadTokens.reduce((s:number,t:any)=> s + (t.totalPages ?? t.total_pages ?? 3), 0)
+    const mins = Math.max(1, Math.round(pagesAhead*0.4 + aheadTokens.length*1 + myPages*0.3))
+    return `${mins} min`
+  })()
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -55,16 +62,16 @@ export default function Queue() {
 
       {mine && (
         <Card className="overflow-hidden border-indigo-200">
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
-            <p className="text-xs tracking-widest text-white/70">YOUR TOKEN</p>
+          <div className={`px-6 py-5 text-white ${String(mine.status).toUpperCase()==='COMPLETED'?'bg-gradient-to-r from-emerald-600 to-teal-600': String(mine.status).toUpperCase()==='PRINTING'?'bg-gradient-to-r from-indigo-600 to-blue-600':'bg-gradient-to-r from-indigo-600 to-violet-600'}`}>
+            <p className="text-xs tracking-widest text-white/70">YOUR TOKEN {String(mine.status).toUpperCase()==='PRINTING'?'• PRINTING STARTED': String(mine.status).toUpperCase()==='COMPLETED'?'• PRINT COMPLETED — COLLECT YOUR PRINT': String(mine.status).toUpperCase()==='CALLED'?'• CALLED — GO TO COUNTER':''}</p>
             <div className="mt-1 flex flex-wrap items-end gap-4">
               <p className="text-5xl font-black tracking-tight leading-none">{mine.tokenNumber ?? mine.token_number ?? '—'}</p>
               <div>
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <Badge tone="neutral" className="bg-white text-slate-900 border-white">{mine.status}</Badge>
+                  <Badge tone="neutral" className="bg-white text-slate-900 border-white">{String(mine.status).toUpperCase()==='WAITING'?'Waiting': String(mine.status).toUpperCase()==='CALLED'?'Called': String(mine.status).toUpperCase()==='PRINTING'?'Printing…': String(mine.status).toUpperCase()==='COMPLETED'?'Done — collect': mine.status}</Badge>
                   <span className="text-white/80">Position #{position ?? '—'}</span>
                 </p>
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-white/80"><Timer className="h-3.5 w-3.5"/> Est. wait {estimate}</p>
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-white/80"><Timer className="h-3.5 w-3.5"/> Est. wait {estimate} {mine.totalPages ? `• ${mine.totalPages} pages` : ''}</p>
               </div>
               <div className="ml-auto hidden sm:flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur border border-white/20">
                 <Ticket className="h-8 w-8 text-white" />
@@ -74,7 +81,7 @@ export default function Queue() {
           <div className="grid grid-cols-3 divide-x divide-slate-200 bg-white text-center text-sm">
             <div className="px-4 py-3"><p className="text-xs text-slate-500">Shop</p><p className="font-medium truncate">{shopId?.slice(0,8)}</p></div>
             <div className="px-4 py-3"><p className="text-xs text-slate-500">Type</p><p className="font-medium">{mine.type ?? '—'}</p></div>
-            <div className="px-4 py-3"><p className="text-xs text-slate-500">Status</p><p className="font-medium">{mine.status}</p></div>
+            <div className="px-4 py-3"><p className="text-xs text-slate-500">Status</p><p className="font-medium">{String(mine.status).toUpperCase()==='PRINTING'?'In progress': String(mine.status).toUpperCase()==='COMPLETED'?'Printed': mine.status}</p></div>
           </div>
         </Card>
       )}
@@ -107,7 +114,12 @@ export default function Queue() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-slate-500">Pos #{idx+1}</p>
-                    <p className="text-xs font-medium">{idx===0 ? 'Now serving' : `~${(idx+1)*3} min`}</p>
+                    <p className="text-xs font-medium">{
+                      String(t.status).toUpperCase()==='PRINTING' ? 'Printing…' :
+                      String(t.status).toUpperCase()==='CALLED' ? 'Called — go to counter' :
+                      String(t.status).toUpperCase()==='COMPLETED' ? 'Done — collect' :
+                      idx===0 ? 'Now serving' : `~${(idx+1)*2} min`
+                    }</p>
                   </div>
                 </div>
               )

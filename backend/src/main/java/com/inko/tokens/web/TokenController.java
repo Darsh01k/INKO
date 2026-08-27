@@ -102,11 +102,14 @@ public class TokenController {
     }
 
     static TokenResponse toDto(Token t) {
-        return toDto(t, null, null);
+        return toDto(t, null, null, null);
     }
 
     static TokenResponse toDto(Token t, String customerName, String orderNumber) {
-        return new TokenResponse(t.getId(), t.getShopId(), t.getOrderId(), t.getTokenNumber(), t.getTokenDate(), t.getType(), t.getPriority(), t.getStatus(), t.getIssuedAt(), t.getCalledAt(), t.getStartedAt(), t.getCompletedAt(), customerName, orderNumber);
+        return toDto(t, customerName, orderNumber, null);
+    }
+    static TokenResponse toDto(Token t, String customerName, String orderNumber, Integer totalPages) {
+        return new TokenResponse(t.getId(), t.getShopId(), t.getOrderId(), t.getTokenNumber(), t.getTokenDate(), t.getType(), t.getPriority(), t.getStatus(), t.getIssuedAt(), t.getCalledAt(), t.getStartedAt(), t.getCompletedAt(), customerName, orderNumber, totalPages);
     }
 
     TokenResponse enriched(Token t) {
@@ -114,7 +117,7 @@ public class TokenController {
         var order = orders.findById(t.getOrderId()).orElse(null);
         if (order == null) return toDto(t);
         var user = users.findById(order.getCustomerId()).orElse(null);
-        return toDto(t, user == null ? null : user.getFullName(), order.getOrderNumber());
+        return toDto(t, user == null ? null : user.getFullName(), order.getOrderNumber(), order.getTotalPages());
     }
 
     List<TokenResponse> enriched(List<Token> list) {
@@ -126,7 +129,7 @@ public class TokenController {
         return list.stream().map(t -> {
             var o = t.getOrderId() == null ? null : orderMap.get(t.getOrderId());
             if (o == null) return toDto(t);
-            return toDto(t, userMap.get(o.getCustomerId()), o.getOrderNumber());
+            return toDto(t, userMap.get(o.getCustomerId()), o.getOrderNumber(), o.getTotalPages());
         }).toList();
     }
 }
