@@ -79,7 +79,7 @@ export function ShopShell() {
           </div>
         )}
       </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 sm:py-8"><Outlet /></main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-8 pb-8 sm:px-6 lg:px-8 sm:pt-10 sm:pb-10"><Outlet /></main>
       <footer className="mt-auto border-t border-slate-200 bg-white/80 backdrop-blur"><div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><p>{t('footerShop').replace('{year}', String(new Date().getFullYear()))}</p><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {t('allSystems')}</span></div></footer>
     </div>
   )
