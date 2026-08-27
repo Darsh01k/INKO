@@ -1,21 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
 import { Card, Button, Badge, Alert, Select } from '@/components/ui'
 import { Radio, Timer, CheckCircle2, AlertTriangle, XCircle, Phone } from 'lucide-react'
+import { useSettings } from '@/lib/settings'
 
 export default function QueueManage() {
+  const { settings, speak } = useSettings()
   const [shopId, setShopId] = useState('')
   const [shops, setShops] = useState<any[]>([])
   const [tokens, setTokens] = useState<any[]>([])
   const [err, setErr] = useState('')
   const [filter, setFilter] = useState('ALL')
   const [live, setLive] = useState(false)
+  const prevCompleted = useRef<Set<string>>(new Set())
 
   useEffect(() => { api.get('/shops/mine').then(r => { setShops(r.data); if (r.data[0]) setShopId(r.data[0].id) }).catch(() => {}) }, [])
 
   async function load() {
     if (!shopId) return
-    try { const r = await api.get(`/shops/${shopId}/queue`); setTokens(r.data ?? []); setLive(true) } catch (e: any) { setErr(apiErrorMessage(e)); setLive(false) }
+    try {
+      const r = await api.get(`/shops/${shopId}/queue`); const next = r.data ?? []
+      if (settings.sound) {
+        for (const tk of next) {
+          const id = String(tk.id)
+          const completed = String(tk.status).toUpperCase() === 'COMPLETED' && !prevCompleted.current.has(id)
+          if (completed) { speak(`Token ${tk.tokenNumber} completed`); prevCompleted.current.add(id) }
+        }
+      }
+      setTokens(next); setLive(true)
+    } catch (e: any) { setErr(apiErrorMessage(e)); setLive(false) }
   }
   useEffect(() => { load(); const id = setInterval(load, 4000); return () => clearInterval(id) }, [shopId])
 

@@ -81,6 +81,16 @@ cd backend; .\mvnw.cmd test      # JUnit: unit, security, concurrency (token), p
 cd frontend; npm run test        # Vitest (from Phase 6 onward)
 ```
 
+## Keep-alive (Render free tier)
+
+Render free sleeps after ~15 min idle. Backend exposes `GET /actuator/health` (`permitAll`, DB-aware, `200 {"status":"UP"}`).
+
+UptimeRobot — paste your Render URL, 10 min interval, backend only:
+1. Create free account at https://uptimerobot.com → **Add New Monitor**
+2. **Monitor Type:** `HTTP(s)` → **Friendly Name:** `Inko Backend` → **URL:** `https://<your-app>.onrender.com/actuator/health`
+3. **Monitoring Interval:** `10 Minutes` → **Monitor Timeout:** `30 Seconds` → select **Alert Contacts** → **Create Monitor**
+4. `render.yaml` sets `healthCheckPath: /actuator/health`; `backend/Dockerfile` has `HEALTHCHECK` probing the same endpoint.
+
 ## Status & deferred features
 
 - Progress tracker: [PROGRESS.md](PROGRESS.md)

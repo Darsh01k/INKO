@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: inko-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: INKO_DB_URL
+        fromDatabase:
+          name: inko-db
+          property: connectionString
+      - key: INKO_DB_USER
+        fromDatabase:
+          name: inko-db
+          property: user
+      - key: INKO_DB_PASSWORD
+        fromDatabase:
+          name: inko-db
+          property: password
+      - key: INKO_JWT_SECRET
+        sync: false
+      - key: INKO_APP_CORS_ALLOWEDORIGINS
+        sync: false
+      - key: INKO_STORAGE_ROOT
+        value: /app/data/storage
+      - key: PAYMENT_PROVIDER
+        value: mock
+
+databases:
+  - name: inko-db
+    plan: free
+    databaseName: inko
+    user: inko_app

@@ -30,6 +30,19 @@
   --shadow-lg: 0 12px 24px -6px rgb(0 0 0 / 0.08), 0 6px 12px -3px rgb(0 0 0 / 0.05);
 }
 
+.dark {
+  --background: oklch(0.17 0.02 260);
+  --foreground: oklch(0.96 0.01 260);
+  --muted: oklch(0.24 0.02 260);
+  --muted-foreground: oklch(0.72 0.02 260);
+  --card: oklch(0.21 0.02 260);
+  --card-foreground: oklch(0.96 0.01 260);
+  --border: oklch(0.30 0.02 260);
+  --input: oklch(0.30 0.02 260);
+  --ring: oklch(0.62 0.18 260);
+  --brand-soft: oklch(0.22 0.05 260);
+}
+
 * { border-color: var(--border); }
 html { scrollbar-gutter: stable; scroll-behavior: smooth; }
 body {

@@ -1,34 +1,55 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { Bell, CheckCheck } from 'lucide-react'
+import { useSettings } from '@/lib/settings'
+import { Bell, BellOff, CheckCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function NotificationsBell() {
   const { user } = useAuth()
+  const { settings, speak } = useSettings()
   const [open, setOpen] = useState(false)
   const qc = useQueryClient()
+  const enabled = !!user && settings.notifications
+  const prevUnread = useRef(0)
 
   const list = useQuery({
-    enabled: !!user,
-    refetchInterval: 30_000,
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
     queryKey: ['notifications'],
     queryFn: async () => (await api.get<any[]>('/notifications')).data ?? [],
   })
   const unread = useQuery({
-    enabled: !!user,
-    refetchInterval: 30_000,
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
     queryKey: ['notifications-unread'],
     queryFn: async () => (await api.get<{ count: number }>('/notifications/unread-count')).data?.count ?? 0,
   })
+
+  useEffect(() => {
+    const c = unread.data ?? 0
+    if (settings.sound && c > prevUnread.current && (list.data?.length ?? 0) > 0) {
+      const newest = list.data?.[0]
+      if (newest?.title) speak(newest.title)
+    }
+    prevUnread.current = c
+  }, [unread.data, list.data, settings.sound, speak])
 
   async function markRead(id: string) {
     try { await api.post(`/notifications/${id}/read`) } finally { qc.invalidateQueries({ queryKey: ['notifications'] }); qc.invalidateQueries({ queryKey: ['notifications-unread'] }) }
   }
   async function markAll() {
     try { await api.post('/notifications/read-all') } finally { qc.invalidateQueries({ queryKey: ['notifications'] }); qc.invalidateQueries({ queryKey: ['notifications-unread'] }) }
+  }
+
+  if (!settings.notifications) {
+    return (
+      <button aria-label="Notifications off" title="Notifications off — enable in Settings" className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-300">
+        <BellOff className="h-4 w-4" />
+      </button>
+    )
   }
 
   return (

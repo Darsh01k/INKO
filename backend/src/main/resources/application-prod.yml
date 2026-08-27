@@ -4,6 +4,12 @@ spring:
       hibernate:
         format_sql: false
 
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 logging:
   level:
     com.inko: INFO
