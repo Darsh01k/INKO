@@ -95,6 +95,10 @@ export function useSettingsStore() {
     try { root.style.colorScheme = settings.darkMode ? 'dark' : 'light' } catch { /* ignore */ }
   }, [settings.darkMode])
 
+  useEffect(() => {
+    try { document.documentElement.lang = settings.language } catch { /* ignore */ }
+  }, [settings.language])
+
   const t = useCallback((key: string) => STRINGS[settings.language][key] ?? STRINGS['en-IN'][key] ?? key, [settings.language])
 
   const set = useCallback(<K extends keyof Settings>(k: K, v: Settings[K]) => {

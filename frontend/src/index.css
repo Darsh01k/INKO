@@ -43,6 +43,29 @@
   --brand-soft: oklch(0.22 0.05 260);
 }
 
+.dark body { background: var(--background); color: var(--foreground); }
+.dark .bg-white { background-color: var(--card) !important; color: var(--card-foreground); }
+.dark .bg-slate-50, .dark .bg-slate-50\/60 { background-color: var(--muted) !important; }
+.dark .bg-slate-100 { background-color: var(--muted) !important; color: var(--muted-foreground); }
+.dark .bg-slate-900 { background-color: var(--foreground) !important; color: var(--background) !important; }
+.dark .border-slate-200 { border-color: var(--border) !important; }
+.dark .divide-slate-200 > * + * { border-color: var(--border) !important; }
+.dark .text-slate-900 { color: var(--foreground) !important; }
+.dark .text-slate-800, .dark .text-slate-700 { color: var(--foreground) !important; }
+.dark .text-slate-600, .dark .text-slate-500 { color: var(--muted-foreground) !important; }
+.dark .text-slate-400 { color: oklch(0.62 0.02 260) !important; }
+.dark .text-slate-300 { color: oklch(0.55 0.02 260) !important; }
+.dark .placeholder\:text-slate-400::placeholder { color: oklch(0.62 0.02 260) !important; }
+.dark .hover\:bg-slate-50:hover { background-color: var(--muted) !important; }
+.dark .hover\:bg-slate-100:hover { background-color: oklch(0.27 0.02 260) !important; }
+.dark header { background-color: var(--card) !important; border-color: var(--border) !important; }
+.dark .mesh-gradient {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, oklch(0.25 0.06 260 / 0.4), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, oklch(0.22 0.07 280 / 0.3), transparent 60%),
+    linear-gradient(180deg, var(--background) 0%, oklch(0.19 0.015 260) 100%);
+}
+
 * { border-color: var(--border); }
 html { scrollbar-gutter: stable; scroll-behavior: smooth; }
 body {
