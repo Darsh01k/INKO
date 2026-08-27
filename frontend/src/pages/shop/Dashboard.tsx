@@ -7,13 +7,13 @@ import { useSettings } from '@/lib/settings'
 
 function KPI({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-widest text-slate-500">{label}</p>
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white"><Icon className="h-4 w-4"/></div>
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-medium uppercase tracking-widest text-slate-500 leading-tight">{label}</p>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white"><Icon className="h-4 w-4"/></div>
       </div>
-      <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>
-      {sub && <p className="text-xs text-slate-500">{sub}</p>}
+      <p className="mt-3 text-2xl font-bold tracking-tight">{value}</p>
+      {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
     </Card>
   )
 }
@@ -85,13 +85,13 @@ export default function ShopDashboard() {
   const maxRev = Math.max(1, ...(revenue ?? []).map(p => Number(p.total ?? p.revenue ?? 0)))
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Store className="h-6 w-6"/> {t('shopDashboard')}</h1>
-          <p className="text-sm text-slate-500">{t('queueFirstOps')}</p>
+    <div className="mx-auto max-w-6xl space-y-7 sm:space-y-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2.5"><Store className="h-5 w-5 sm:h-6 sm:w-6"/> {t('shopDashboard')}</h1>
+          <p className="text-sm text-slate-500 leading-relaxed">{t('queueFirstOps')}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {shops.length > 0 && (
             <Select value={shopId} onChange={e => setShopId(e.target.value)} className="w-56">
               {shops.map(s => <option key={s.id} value={s.id}>{s.name} — {s.city}</option>)}
@@ -103,7 +103,7 @@ export default function ShopDashboard() {
 
       {err && <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</Card>}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <KPI icon={Users} label={t('platformOrders')} value={stats ? String(stats.totalOrders ?? stats.todayOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? t('todaySuffix').replace('{n}', String(stats.todayOrders)) : undefined} />
         <KPI icon={IndianRupee} label={t('platformRevenue')} value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub={t('netOfRefunds')} />
         <KPI icon={Store} label={t('shopsLabel')} value={stats ? String(stats.totalShops ?? shops.length) : String(shops.length)} sub={t('openNow').replace('{n}', String(shops.filter(s => s.status === 'OPEN').length))} />
@@ -114,7 +114,7 @@ export default function ShopDashboard() {
         <Card className="space-y-3 p-5"><Skeleton className="h-6 w-1/3" /><Skeleton className="h-20 w-full" /></Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+      <div className="grid gap-6 sm:gap-7 lg:grid-cols-[1.4fr_0.8fr]">
         <Card className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold">{t('revenueByDay')}</h3>

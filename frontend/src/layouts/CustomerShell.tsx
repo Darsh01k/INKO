@@ -21,13 +21,13 @@ export function CustomerShell() {
   return (
     <div className="flex min-h-screen flex-col bg-[#fcfcfd]">
       <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-[64px] max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/customer/dashboard" className="flex items-center gap-2.5 font-semibold tracking-tight">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl brand-gradient shadow-sm"><Printer className="h-5 w-5 text-white" /></span>
             <span className="hidden text-[17px] font-bold tracking-tight sm:inline">Inko</span>
             <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium tracking-widest text-slate-500 sm:inline">{t('appTagCustomer')}</span>
           </Link>
-          <nav className="ml-6 hidden items-center gap-1 lg:flex">
+          <nav className="ml-8 hidden items-center gap-1.5 lg:flex">
             {NAV.map((item) => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => cn('inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition', isActive ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')}>
                 <item.icon className="h-4 w-4" />{item.label}
@@ -80,8 +80,8 @@ export function CustomerShell() {
           </div>
         )}
       </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-12 sm:px-6 lg:px-8"><Outlet /></main>
-      <footer className="border-t border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><p>{t('footerCustomer').replace('{year}', String(new Date().getFullYear()))}</p><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {t('allSystems')}</span></div></footer>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 sm:py-8"><Outlet /></main>
+      <footer className="mt-auto border-t border-slate-200 bg-white/80 backdrop-blur"><div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><p>{t('footerCustomer').replace('{year}', String(new Date().getFullYear()))}</p><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {t('allSystems')}</span></div></footer>
     </div>
   )
 }

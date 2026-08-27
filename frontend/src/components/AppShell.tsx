@@ -49,8 +49,8 @@ export function AppShell() {
   return (
     <div className="min-h-screen bg-[#fcfcfd]">
       {/* Top bar - sticky with blur */}
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
-        <div className="mx-auto flex h-[64px] max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
           {/* Brand */}
           <Link to="/dashboard" className="flex items-center gap-2.5 font-semibold tracking-tight">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl brand-gradient shadow-sm">
@@ -61,7 +61,7 @@ export function AppShell() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="ml-6 hidden items-center gap-1 lg:flex">
+          <nav className="ml-8 hidden items-center gap-1.5 lg:flex">
             {filteredNav.map((item) => (
               <NavLink
                 key={item.to}
@@ -172,12 +172,12 @@ export function AppShell() {
         </div>
       </div>
 
-      <main className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 sm:py-8">
         <Outlet />
       </main>
 
-      <footer className="mt-auto border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <footer className="mt-auto border-t border-slate-200 bg-white/80 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <p>© {new Date().getFullYear()} Inko — Smart Printing Platform. Built for shops, loved by customers.</p>
           <div className="flex gap-4">
             <a href="#" className="hover:text-slate-700">Privacy</a>

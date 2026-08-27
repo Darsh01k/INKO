@@ -104,11 +104,16 @@ body {
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background: var(--background);
   color: var(--foreground);
+  line-height: 1.6;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: "cv02","cv03","cv04","cv11";
 }
+h1, h2, h3 { letter-spacing: -0.02em; line-height: 1.2; }
+main { padding-top: 1.5rem; padding-bottom: 3rem; }
+@media (min-width: 640px) { main { padding-top: 2rem; } }
 
 ::selection { background: oklch(0.92 0.06 260); color: oklch(0.30 0.15 260); }
 
@@ -130,10 +135,14 @@ body {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* Utilities */
+/* Utilities — refined spacing & elevation */
 .text-balance { text-wrap: balance; }
 .surface { background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .surface-hover:hover { box-shadow: var(--shadow-md); border-color: oklch(0.90 0.01 260); }
+.card-spacious { padding: 1.5rem; }
+@media (min-width: 640px) { .card-spacious { padding: 1.75rem; } }
+.section-gap { display: flex; flex-direction: column; gap: 1.5rem; }
+@media (min-width: 640px) { .section-gap { gap: 2rem; } }
 .brand-gradient { background: linear-gradient(135deg, oklch(0.58 0.20 260) 0%, oklch(0.52 0.22 268) 45%, oklch(0.48 0.19 278) 100%); }
 .mesh-gradient {
   background:
