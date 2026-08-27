@@ -94,6 +94,9 @@ public class OrderService {
         if (target == OrderStatus.CANCELLED) { o.setCancelledAt(Instant.now()); o.setCancellationReason("Cancelled"); }
         o = orders.save(o);
         if (target == OrderStatus.PAID || target == OrderStatus.COD_SELECTED) {
+            String payTitle = target == OrderStatus.PAID ? "Payment done" : "COD confirmed";
+            String payBody = target == OrderStatus.PAID ? "Payment for " + o.getOrderNumber() + " verified — generating your token" : "Order " + o.getOrderNumber() + " confirmed — pay at shop counter";
+            notifier.create(o.getCustomerId(), "PAYMENT_" + target.name(), payTitle, payBody, "/order/" + o.getId());
             Token token = tokens.generate(o.getShopId(), o.getId(), com.inko.tokens.domain.TokenType.NORMAL);
             o.setStatus(OrderStatus.TOKEN_GENERATED.name());
             orders.save(o);

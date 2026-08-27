@@ -131,10 +131,10 @@ export default function Configure() {
             {docs.length>0 && (
               <div className="mt-4 grid gap-2">
                 {docs.slice(0,3).map((d,i)=>(
-                  <div key={i} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                    <FileText className="h-4 w-4 text-slate-500" />
-                    <span className="truncate font-medium">{d.filename ?? d.fileName ?? d.name ?? `Document ${i+1}`}</span>
-                    <Badge tone="neutral" className="ml-auto">{d.pages ?? d.pageCount ?? '—'} pages</Badge>
+                  <div key={i} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm min-w-0 overflow-hidden">
+                    <FileText className="h-4 w-4 text-slate-500 shrink-0" />
+                    <span className="truncate font-medium flex-1 min-w-0">{d.filename ?? d.fileName ?? d.name ?? `Document ${i+1}`}</span>
+                    <Badge tone="neutral" className="ml-auto shrink-0">{d.pages ?? d.pageCount ?? '—'} pages</Badge>
                   </div>
                 ))}
                 {docs.length>3 && <p className="text-xs text-slate-500">+{docs.length-3} more</p>}

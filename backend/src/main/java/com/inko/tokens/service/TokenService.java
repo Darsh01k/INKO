@@ -21,9 +21,10 @@ public class TokenService {
     private final com.inko.orders.repo.OrderRepository ordersRepo;
     private final com.inko.catalog.repo.ShopPaperInventoryRepository inventoryRepo;
     private final com.inko.shops.repo.ShopRepository shopRepo;
+    private final com.inko.notifications.service.NotificationService notifier;
 
-    public TokenService(TokenRepository tokens, TokenSequenceRepository sequences, QueueEntryRepository queue, com.inko.orders.repo.OrderRepository ordersRepo, com.inko.catalog.repo.ShopPaperInventoryRepository inventoryRepo, com.inko.shops.repo.ShopRepository shopRepo) {
-        this.tokens = tokens; this.sequences = sequences; this.queue = queue; this.ordersRepo = ordersRepo; this.inventoryRepo = inventoryRepo; this.shopRepo = shopRepo;
+    public TokenService(TokenRepository tokens, TokenSequenceRepository sequences, QueueEntryRepository queue, com.inko.orders.repo.OrderRepository ordersRepo, com.inko.catalog.repo.ShopPaperInventoryRepository inventoryRepo, com.inko.shops.repo.ShopRepository shopRepo, com.inko.notifications.service.NotificationService notifier) {
+        this.tokens = tokens; this.sequences = sequences; this.queue = queue; this.ordersRepo = ordersRepo; this.inventoryRepo = inventoryRepo; this.shopRepo = shopRepo; this.notifier = notifier;
     }
 
     @Transactional
@@ -126,9 +127,8 @@ public class TokenService {
                                             var shop = shopRepo.findById(t.getShopId()).orElse(null);
                                             var owner = shop != null ? shop.getOwnerUserId() : null;
                                             if (owner != null) {
-                                                var notifier2 = (com.inko.notifications.service.NotificationService) org.springframework.web.context.ContextLoader.getCurrentWebApplicationContext().getBean(com.inko.notifications.service.NotificationService.class);
                                                 int waiting = queue.findByShopIdAndStatusOrderByPositionAsc(t.getShopId(), "WAITING").size();
-                                                notifier2.create(owner, "LOW_STOCK", "Low paper: " + row.getPaperSize(), row.getPaperSize() + " only " + next + " sheets left — queue has " + waiting + " waiting. Please add papers.", "/shop/shops");
+                                                notifier.create(owner, "LOW_STOCK", "Low paper: " + row.getPaperSize(), row.getPaperSize() + " only " + next + " sheets left — queue has " + waiting + " waiting. Please add papers.", "/shop/shops");
                                             }
                                         } catch (Exception ignored2) {}
                                     }
@@ -153,10 +153,7 @@ public class TokenService {
                         default -> null;
                     };
                     if (title != null) {
-                        try {
-                            var notifier = (com.inko.notifications.service.NotificationService) org.springframework.web.context.ContextLoader.getCurrentWebApplicationContext().getBean(com.inko.notifications.service.NotificationService.class);
-                            notifier.create(userId, "TOKEN_" + target.name(), title, body, "/queue/" + t.getShopId() + "?order=" + t.getOrderId());
-                        } catch (Exception ignored) {}
+                        try { notifier.create(userId, "TOKEN_" + target.name(), title, body, "/queue/" + t.getShopId() + "?order=" + t.getOrderId()); } catch (Exception ignored) {}
                     }
                 } catch (Exception ignored) {}
             });
