@@ -24,22 +24,22 @@ export default function MapPicker({ lat, lng, onPick }: { lat?: number | null, l
     } catch { return null }
   }
 
-  async function doSearch(){
-    if (!search.trim()) return
+  async function doSearch(q?: string){
+    const query = (q ?? search).trim()
+    if (!query) { setSuggestions([]); return }
     setLoading(true)
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(search)}&limit=5&addressdetails=1`)
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=7&addressdetails=1&countrycodes=in`)
       const j = await r.json()
       if (Array.isArray(j) && j.length){
         setSuggestions(j)
-        const first = j[0]
-        const la = parseFloat(first.lat), ln = parseFloat(first.lon)
-        setPickLat(String(la)); setPickLng(String(ln))
-        setAddr(first.display_name || '')
-        leafletRef.current?.setView([la, ln], 16)
-        markerRef.current?.setLatLng([la, ln])
-      } else setSuggestions([])
-    } catch {} finally { setLoading(false) }
+      } else {
+        const r2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=7&addressdetails=1`)
+        const j2 = await r2.json()
+        if (Array.isArray(j2)) setSuggestions(j2)
+        else setSuggestions([])
+      }
+    } catch { setSuggestions([]) } finally { setLoading(false) }
   }
   function pickSuggestion(item:any){
     const la = parseFloat(item.lat), ln = parseFloat(item.lon)
@@ -113,15 +113,16 @@ export default function MapPicker({ lat, lng, onPick }: { lat?: number | null, l
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 p-3 bg-slate-50/50">
       <div className="flex gap-2">
-        <Input value={search} onChange={e=>{ setSearch(e.target.value); if(e.target.value.trim().length>=2){ /* live suggestions */ clearTimeout((window as any).__mapSearch); (window as any).__mapSearch=setTimeout(()=>doSearch(), 450)} }} placeholder="Search address, area, pincode…" onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch() } }} />
-        <Button size="sm" variant="secondary" onClick={doSearch} loading={loading}><Search className="h-3.5 w-3.5"/> Search</Button>
+        <Input value={search} onChange={e=>{ const v=e.target.value; setSearch(v); if(v.trim().length>=2){ clearTimeout((window as any).__mapSearch); (window as any).__mapSearch=setTimeout(()=>doSearch(v), 500)} else setSuggestions([]) }} placeholder="Search any place — city, area, shop, pincode…" onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch() } }} />
+        <Button size="sm" variant="secondary" onClick={()=>doSearch()} loading={loading}><Search className="h-3.5 w-3.5"/> Search</Button>
       </div>
       {suggestions.length>0 && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden max-h-40 overflow-y-auto">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden max-h-44 overflow-y-auto shadow-sm">
+          <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-500 bg-slate-50 border-b">Tap to view on map — {suggestions.length} places found</p>
           {suggestions.map((it:any)=>(
-            <button key={it.place_id} onClick={()=>pickSuggestion(it)} className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-              <p className="text-xs font-medium truncate">{it.display_name}</p>
-              <p className="text-[11px] text-slate-500">{it.type} • {it.lat}, {it.lon}</p>
+            <button key={it.place_id} onClick={()=>pickSuggestion(it)} className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0">
+              <p className="text-xs font-medium line-clamp-2">{it.display_name}</p>
+              <p className="text-[11px] text-slate-500 capitalize">{it.type} • {it.class} • {Number(it.lat).toFixed(4)}, {Number(it.lon).toFixed(4)}</p>
             </button>
           ))}
         </div>

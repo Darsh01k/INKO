@@ -16,9 +16,15 @@ export default function QrScan() {
       const shopId = r.data.shopId
       api.post(`/qr/${code}/scan`).catch(() => {})
       return api.get(`/shops/${shopId}`).then(s => s.data).catch(() => ({ id: shopId, name: 'Shop', city: null, status: 'OPEN', supportsColor: true }))
-    }).then(s => {
+    }).then(async s => {
       try { localStorage.setItem('inko.qrShop', JSON.stringify({ shopId: s.id, name: s.name, code })) } catch { /* ignore */ }
-      // Guest flow: straight into the upload dashboard — login is optional
+      try {
+        const hasToken = (()=>{ try{ return !!localStorage.getItem('inko.access_token') } catch { return false } })()
+        if (!hasToken) {
+          const { data } = await api.post('/auth/guest', {})
+          try { localStorage.setItem('inko.access_token', data.accessToken); localStorage.setItem('inko.refresh_token', data.refreshToken); localStorage.setItem('inko.lastLoginRole','customer') } catch {}
+        }
+      } catch {}
       nav(`/upload?shopId=${s.id}&src=qr`, { replace: true })
     }).catch((e: any) => { setErr(apiErrorMessage(e) || 'Invalid or expired QR') })
   }, [code, nav])

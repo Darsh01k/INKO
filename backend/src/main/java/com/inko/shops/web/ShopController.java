@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.util.List;
 import java.util.Map;
@@ -91,8 +92,7 @@ public class ShopController {
         return toDto(shop);
     }
 
-    @PatchMapping("/{id}")
-    @PutMapping("/{id}")
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
     public ShopSummaryDto update(@AuthenticationPrincipal InkoPrincipal principal,
                                  @PathVariable UUID id,
                                  @RequestBody Map<String, Object> body) {

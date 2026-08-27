@@ -77,7 +77,57 @@ public class TokenService {
             qe.setStatus(qs);
             queue.save(qe);
         });
-        return tokens.save(t);
+        Token saved = tokens.save(t);
+        if (t.getOrderId() != null) {
+            ordersRepo.findById(t.getOrderId()).ifPresent(o -> {
+                try {
+                    String cur = o.getStatus();
+                    com.inko.orders.domain.OrderStatus targetOrder = switch (target) {
+                        case CALLED -> com.inko.orders.domain.OrderStatus.QUEUED;
+                        case PRINTING -> com.inko.orders.domain.OrderStatus.PRINTING;
+                        case COMPLETED -> com.inko.orders.domain.OrderStatus.COMPLETED;
+                        case CANCELLED -> com.inko.orders.domain.OrderStatus.CANCELLED;
+                        case FAILED -> com.inko.orders.domain.OrderStatus.FAILED;
+                        default -> null;
+                    };
+                    if (targetOrder != null) {
+                        com.inko.orders.domain.OrderStatus curEnum = com.inko.orders.domain.OrderStatus.valueOf(cur);
+                        if (curEnum.canTransitionTo(targetOrder) || cur.equals("QUEUED")) {
+                            o.setStatus(targetOrder.name());
+                            ordersRepo.save(o);
+                        } else if (target == TokenStatus.PRINTING && cur.equals("QUEUED")) {
+                            o.setStatus(com.inko.orders.domain.OrderStatus.PRINTING.name());
+                            ordersRepo.save(o);
+                        } else if (target == TokenStatus.COMPLETED) {
+                            o.setStatus(com.inko.orders.domain.OrderStatus.COMPLETED.name());
+                            ordersRepo.save(o);
+                        }
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    var userId = o.getCustomerId();
+                    String title = switch (target) {
+                        case CALLED -> "Your turn — go to counter";
+                        case PRINTING -> "Printing started";
+                        case COMPLETED -> "Print completed — collect your print";
+                        default -> null;
+                    };
+                    String body = switch (target) {
+                        case CALLED -> "Token " + t.getTokenNumber() + " called — please come to the counter";
+                        case PRINTING -> "Your print " + t.getTokenNumber() + " is now printing";
+                        case COMPLETED -> "Token " + t.getTokenNumber() + " done — collect from shop";
+                        default -> null;
+                    };
+                    if (title != null) {
+                        try {
+                            var notifier = (com.inko.notifications.service.NotificationService) org.springframework.web.context.ContextLoader.getCurrentWebApplicationContext().getBean(com.inko.notifications.service.NotificationService.class);
+                            notifier.create(userId, "TOKEN_" + target.name(), title, body, "/queue/" + t.getShopId() + "?order=" + t.getOrderId());
+                        } catch (Exception ignored) {}
+                    }
+                } catch (Exception ignored) {}
+            });
+        }
+        return saved;
     }
 
     @Transactional(readOnly = true)

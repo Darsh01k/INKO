@@ -3,6 +3,7 @@ import { api, apiErrorMessage } from '@/lib/api'
 import { Card, Button, Input, Label, Badge, Dialog } from '@/components/ui'
 import { Store, Plus, Pencil, Trash2, MapPin, Save, Boxes, XCircle } from 'lucide-react'
 import MapPicker from '@/components/MapPicker'
+import { CountryCode, fullPhone } from '@/components/PhoneInput'
 
 type Shop = {
   id: string; name: string; city: string | null; status: string
@@ -21,6 +22,8 @@ export default function ShopManage() {
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ name:'', addressLine1:'', addressLine2:'', city:'', state:'', pincode:'', phone:'', latitude:'', longitude:'' })
   const [editForm, setEditForm] = useState({ name:'', addressLine1:'', addressLine2:'', city:'', state:'', pincode:'', phone:'', latitude:'', longitude:'' })
+  const [ccForm, setCcForm] = useState('+91')
+  const [ccEdit, setCcEdit] = useState('+91')
   const [showMap, setShowMap] = useState(false)
   const [showEditMap, setShowEditMap] = useState(false)
   const [resourceShop, setResourceShop] = useState<Shop | null>(null)
@@ -68,13 +71,18 @@ export default function ShopManage() {
 
   function openCreate() {
     setForm({ name:'', addressLine1:'', addressLine2:'', city:'', state:'', pincode:'', phone:'', latitude:'', longitude:'' })
-    setShowMap(false); setCreateOpen(true); setErr('')
+    setCcForm('+91'); setShowMap(false); setCreateOpen(true); setErr('')
   }
   function openEdit(s: Shop) {
     setEditing(s)
+    const raw = s.phone ?? ''
+    let cc = '+91', local = raw
+    const m = raw.match(/^(\+\d{1,4})(.*)$/)
+    if (m){ cc = m[1]; local = m[2].trim() }
+    setCcEdit(cc)
     setEditForm({
       name: s.name ?? '', addressLine1: s.addressLine1 ?? '', addressLine2: s.addressLine2 ?? '',
-      city: s.city ?? '', state: s.state ?? '', pincode: s.pincode ?? '', phone: s.phone ?? '',
+      city: s.city ?? '', state: s.state ?? '', pincode: s.pincode ?? '', phone: local.replace(/[^0-9]/g,''),
       latitude: s.latitude != null ? String(s.latitude) : '', longitude: s.longitude != null ? String(s.longitude) : ''
     })
     setShowEditMap(false); setErr('')
@@ -84,9 +92,11 @@ export default function ShopManage() {
     if (!form.name.trim()) { setErr('Shop name is required'); return }
     if (form.addressLine1.trim() && !form.city.trim()) { setErr('City is required when address is provided'); return }
     if (form.pincode && !/^\d{5,6}$/.test(form.pincode.trim())) { setErr('Pincode must be 5-6 digits'); return }
+    const cleanPhone = form.phone.replace(/[^0-9]/g,'')
+    if (cleanPhone && cleanPhone.length < 7) { setErr('Enter valid phone number'); return }
     setBusy(true); setErr('')
     try {
-      const payload: any = { name: form.name.trim(), city: form.city.trim() || undefined, addressLine1: form.addressLine1.trim() || undefined, addressLine2: form.addressLine2.trim() || undefined, state: form.state.trim() || undefined, pincode: form.pincode.trim() || undefined, phone: form.phone.trim() || undefined }
+      const payload: any = { name: form.name.trim(), city: form.city.trim() || undefined, addressLine1: form.addressLine1.trim() || undefined, addressLine2: form.addressLine2.trim() || undefined, state: form.state.trim() || undefined, pincode: form.pincode.trim() || undefined, phone: cleanPhone ? fullPhone(ccForm, cleanPhone) : undefined }
       if (form.latitude) payload.latitude = parseFloat(form.latitude)
       if (form.longitude) payload.longitude = parseFloat(form.longitude)
       await api.post('/shops', payload)
@@ -99,9 +109,11 @@ export default function ShopManage() {
     if (!editForm.name.trim()) { setErr('Shop name is required'); return }
     if (editForm.addressLine1.trim() && !editForm.city.trim()) { setErr('City is required when address is provided'); return }
     if (editForm.pincode && !/^\d{5,6}$/.test(editForm.pincode.trim())) { setErr('Pincode must be 5-6 digits'); return }
+    const cleanPhone = editForm.phone.replace(/[^0-9]/g,'')
+    if (cleanPhone && cleanPhone.length < 7) { setErr('Enter valid phone number'); return }
     setBusy(true); setErr('')
     try {
-      const payload: any = { name: editForm.name.trim(), addressLine1: editForm.addressLine1.trim() || null, addressLine2: editForm.addressLine2.trim() || null, city: editForm.city.trim() || null, state: editForm.state.trim() || null, pincode: editForm.pincode.trim() || null, phone: editForm.phone.trim() || null }
+      const payload: any = { name: editForm.name.trim(), addressLine1: editForm.addressLine1.trim() || null, addressLine2: editForm.addressLine2.trim() || null, city: editForm.city.trim() || null, state: editForm.state.trim() || null, pincode: editForm.pincode.trim() || null, phone: cleanPhone ? fullPhone(ccEdit, cleanPhone) : null }
       payload.latitude = editForm.latitude ? parseFloat(editForm.latitude) : null
       payload.longitude = editForm.longitude ? parseFloat(editForm.longitude) : null
       try { await api.patch(`/shops/${editing.id}`, payload) } catch (e:any) {
@@ -170,7 +182,7 @@ export default function ShopManage() {
             <div><Label>City {form.addressLine1.trim()?'*':''}</Label><Input value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))} placeholder="Pune" /></div>
             <div><Label>State</Label><Input value={form.state} onChange={e=>setForm(p=>({...p,state:e.target.value}))} placeholder="Maharashtra" /></div>
             <div><Label>Pincode</Label><Input value={form.pincode} onChange={e=>setForm(p=>({...p,pincode:e.target.value}))} placeholder="411038" /></div>
-            <div><Label>Phone</Label><Input type="text" inputMode="tel" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="9876543210" autoComplete="tel" /></div>
+            <div><Label>Phone</Label><div className="relative"><CountryCode value={ccForm} onChange={setCcForm} /><Input value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value.replace(/[^0-9]/g,'')}))} placeholder="90000 00000" className="pl-[112px]" inputMode="numeric" /></div></div>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="secondary" onClick={()=>setShowMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showMap?'Hide map':'Pick from map'}</Button>
@@ -210,7 +222,7 @@ export default function ShopManage() {
               <div><Label>City {editForm.addressLine1.trim()?'*':''}</Label><Input value={editForm.city} onChange={e=>setEditForm(p=>({...p,city:e.target.value}))} /></div>
               <div><Label>State</Label><Input value={editForm.state} onChange={e=>setEditForm(p=>({...p,state:e.target.value}))} /></div>
               <div><Label>Pincode</Label><Input value={editForm.pincode} onChange={e=>setEditForm(p=>({...p,pincode:e.target.value}))} /></div>
-              <div><Label>Phone</Label><Input type="text" inputMode="tel" value={editForm.phone} onChange={e=>setEditForm(p=>({...p,phone:e.target.value}))} autoComplete="tel" /></div>
+              <div><Label>Phone</Label><div className="relative"><CountryCode value={ccEdit} onChange={setCcEdit} /><Input value={editForm.phone} onChange={e=>setEditForm(p=>({...p,phone:e.target.value.replace(/[^0-9]/g,'')}))} placeholder="90000 00000" className="pl-[112px]" inputMode="numeric" /></div></div>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={()=>setShowEditMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showEditMap?'Hide map':'Pick from map'}</Button>
