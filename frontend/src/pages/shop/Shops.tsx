@@ -170,7 +170,7 @@ export default function ShopManage() {
             <div><Label>City {form.addressLine1.trim()?'*':''}</Label><Input value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))} placeholder="Pune" /></div>
             <div><Label>State</Label><Input value={form.state} onChange={e=>setForm(p=>({...p,state:e.target.value}))} placeholder="Maharashtra" /></div>
             <div><Label>Pincode</Label><Input value={form.pincode} onChange={e=>setForm(p=>({...p,pincode:e.target.value}))} placeholder="411038" /></div>
-            <div><Label>Phone</Label><Input type="tel" inputMode="numeric" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="9876543210" /></div>
+            <div><Label>Phone</Label><Input type="text" inputMode="tel" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="9876543210" autoComplete="tel" /></div>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="secondary" onClick={()=>setShowMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showMap?'Hide map':'Pick from map'}</Button>
@@ -210,7 +210,7 @@ export default function ShopManage() {
               <div><Label>City {editForm.addressLine1.trim()?'*':''}</Label><Input value={editForm.city} onChange={e=>setEditForm(p=>({...p,city:e.target.value}))} /></div>
               <div><Label>State</Label><Input value={editForm.state} onChange={e=>setEditForm(p=>({...p,state:e.target.value}))} /></div>
               <div><Label>Pincode</Label><Input value={editForm.pincode} onChange={e=>setEditForm(p=>({...p,pincode:e.target.value}))} /></div>
-              <div><Label>Phone</Label><Input type="tel" inputMode="numeric" value={editForm.phone} onChange={e=>setEditForm(p=>({...p,phone:e.target.value}))} /></div>
+              <div><Label>Phone</Label><Input type="text" inputMode="tel" value={editForm.phone} onChange={e=>setEditForm(p=>({...p,phone:e.target.value}))} autoComplete="tel" /></div>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={()=>setShowEditMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showEditMap?'Hide map':'Pick from map'}</Button>

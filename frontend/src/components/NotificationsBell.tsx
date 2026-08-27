@@ -38,10 +38,14 @@ export function NotificationsBell() {
   }, [unread.data, list.data, settings.sound, speak])
 
   async function markRead(id: string) {
-    try { await api.post(`/notifications/${id}/read`) } finally { qc.invalidateQueries({ queryKey: ['notifications'] }); qc.invalidateQueries({ queryKey: ['notifications-unread'] }) }
+    try { await api.post(`/notifications/${id}/read`) } catch {} finally { qc.invalidateQueries({ queryKey: ['notifications'] }); qc.invalidateQueries({ queryKey: ['notifications-unread'] }) }
   }
-  async function markAll() {
-    try { await api.post('/notifications/read-all') } finally { qc.invalidateQueries({ queryKey: ['notifications'] }); qc.invalidateQueries({ queryKey: ['notifications-unread'] }) }
+  async function markAll(e?: React.MouseEvent) {
+    if (e) e.stopPropagation()
+    try { await api.post('/notifications/read-all') } catch {} finally {
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+      qc.invalidateQueries({ queryKey: ['notifications-unread'] })
+    }
   }
 
   if (!settings.notifications) {
@@ -67,14 +71,14 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-2 w-80 rounded-2xl border border-slate-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between px-4 pt-3">
+          <div className="fixed inset-x-3 top-14 z-40 rounded-2xl border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 max-h-[70vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 pt-3 shrink-0">
               <p className="text-sm font-semibold">Notifications</p>
               {(unread.data ?? 0) > 0 && (
-                <button onClick={markAll} className="inline-flex items-center gap-1 text-xs font-medium text-[oklch(0.55_0.20_260)] hover:underline"><CheckCheck className="h-3.5 w-3.5"/> Mark all read</button>
+                <button onClick={markAll} className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"><CheckCheck className="h-3.5 w-3.5"/> Mark all read</button>
               )}
             </div>
-            <div className="mt-2 max-h-80 overflow-auto p-2">
+            <div className="mt-2 flex-1 overflow-auto p-2">
               {(list.data ?? []).length === 0 ? (
                 <p className="px-3 py-8 text-center text-sm text-slate-500">Nothing yet — order & token updates land here.</p>
               ) : list.data!.map(n => {

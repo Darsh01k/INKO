@@ -28,17 +28,27 @@ export default function Upload() {
   const fromQr = search.get('src') === 'qr' || Boolean(search.get('shopId'))
   const isGuest = !user || (user.email ?? '').endsWith('@guest.inko.local')
   const [guestTried, setGuestTried] = useState(false)
-  const [guestName, setGuestName] = useState('')
+  const [guestName, setGuestName] = useState(() => {
+    try { return localStorage.getItem('inko.guestName') || '' } catch { return '' }
+  })
   const [nameBusy, setNameBusy] = useState(false)
+
+  useEffect(() => {
+    if (guestName) try { localStorage.setItem('inko.guestName', guestName) } catch {}
+  }, [guestName])
 
   // Login-optional printing: silently mint a guest session so uploads work without an account
   useEffect(() => {
     if (user || guestTried || tokens.access) return
     setGuestTried(true)
-    api.post('/auth/guest', {}).then(({ data }) => {
+    const savedName = (() => { try { return localStorage.getItem('inko.guestName') || '' } catch { return '' } })()
+    api.post('/auth/guest', {}).then(async ({ data }) => {
       tokens.set(data.accessToken, data.refreshToken)
       localStorage.setItem('inko.lastLoginRole', 'customer')
-      return refreshMe()
+      await refreshMe()
+      if (savedName && savedName.trim()) {
+        try { await api.patch('/users/me', { fullName: savedName.trim() }); await refreshMe() } catch {}
+      }
     }).catch(() => {})
   }, [user, guestTried, refreshMe])
   const [files, setFiles] = useState<File[]>([])
@@ -101,6 +111,7 @@ export default function Upload() {
               onClick={async () => {
                 setNameBusy(true)
                 try {
+                  try { localStorage.setItem('inko.guestName', guestName.trim()) } catch {}
                   if (!user) {
                     const { data } = await api.post('/auth/guest', {})
                     tokens.set(data.accessToken, data.refreshToken)
@@ -111,11 +122,11 @@ export default function Upload() {
                     await api.patch('/users/me', { fullName: guestName.trim() })
                     await refreshMe()
                   }
-                  toast('Thanks! Your name will show on the queue token', 'success')
+                  toast('Thanks! We’ll remember you next time', 'success')
                 } catch (e: any) { setErr(apiErrorMessage(e)) } finally { setNameBusy(false) }
               }}
             >
-              Save name
+              Save & remember
             </Button>
           </div>
           {user && user.fullName !== 'Guest' && <p className="mt-2 text-xs text-emerald-700">Printing as <b>{user.fullName}</b> ✓</p>}

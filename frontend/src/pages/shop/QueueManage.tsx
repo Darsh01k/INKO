@@ -72,6 +72,25 @@ export default function QueueManage() {
     } finally { setActing(null) }
   }
 
+  const [autoMode, setAutoMode] = useState(() => {
+    try { return localStorage.getItem('inko.autoQueue') === '1' } catch { return false }
+  })
+  useEffect(()=>{ try{ localStorage.setItem('inko.autoQueue', autoMode?'1':'0')}catch{} },[autoMode])
+
+  useEffect(()=>{
+    if (!autoMode || !shopId) return
+    const iv = setInterval(async ()=>{
+      if (acting) return
+      const waiting = tokens.find(t=> String(t.status).toUpperCase()==='WAITING')
+      if (waiting){ await act(waiting.id, 'CALLED'); return }
+      const called = tokens.find(t=> String(t.status).toUpperCase()==='CALLED')
+      if (called){ await act(called.id, 'PRINTING'); return }
+      const printing = tokens.find(t=> String(t.status).toUpperCase()==='PRINTING')
+      if (printing){ await act(printing.id, 'COMPLETED'); return }
+    }, 3500)
+    return ()=>clearInterval(iv)
+  }, [autoMode, tokens, acting, shopId])
+
   const filtered = tokens.filter(t=> filter==='ALL' || String(t.status).toUpperCase()===filter)
   const nextToken = tokens[0]
 
@@ -130,9 +149,13 @@ export default function QueueManage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Queue management</h1>
-          <p className="text-sm text-slate-500">Queue-first ops — large token numbers, fast actions</p>
+          <p className="text-sm text-slate-500">Automated flow — customer called → printing → ready to collect • shopkeeper just hands over</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium cursor-pointer">
+            <input type="checkbox" checked={autoMode} onChange={e=>setAutoMode(e.target.checked)} className="h-3.5 w-3.5 rounded" />
+            {autoMode ? 'Auto: ON' : 'Auto: OFF'}
+          </label>
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium sm:inline-flex ${live ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}><span className={`h-2 w-2 rounded-full ${live ? 'animate-pulse bg-emerald-500' : 'bg-amber-500'}`}/> {live ? 'Live' : 'Reconnecting…'}</span>
           <Select value={filter} onChange={e=>setFilter(e.target.value)} className="w-36">
             <option value="ALL">All statuses</option>
@@ -140,6 +163,7 @@ export default function QueueManage() {
           </Select>
         </div>
       </div>
+      {autoMode && <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs text-indigo-800">Auto mode: calls next → after 3s starts printing → after print time marks Ready to collect. You only hand over the pages.</div>}
 
       {shopsLoading ? (
         <Card className="p-4 text-sm text-slate-500">Loading your shops…</Card>
