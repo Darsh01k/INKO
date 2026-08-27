@@ -1,62 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '@/lib/api'
 import { Card, Button, Input, Label, Badge, Dialog } from '@/components/ui'
-import { Store, Plus, Pencil, Trash2, MapPin, Save } from 'lucide-react'
+import { Store, Plus, Pencil, Trash2, MapPin, Save, Boxes, Check, XCircle } from 'lucide-react'
+import MapPicker from '@/components/MapPicker'
 
 type Shop = {
   id: string; name: string; city: string | null; status: string
   addressLine1?: string | null; addressLine2?: string | null; state?: string | null; pincode?: string | null
   latitude?: number | null; longitude?: number | null; phone?: string | null; email?: string | null
 }
-
-function MapPicker({ lat, lng, onPick }: { lat?: number | null, lng?: number | null, onPick: (a:{lat:number,lng:number,address?:string})=>void }) {
-  const [pickLat, setPickLat] = useState(lat != null ? String(lat) : '')
-  const [pickLng, setPickLng] = useState(lng != null ? String(lng) : '')
-  const [addr, setAddr] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function reverse(lat: number, lng: number) {
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`, { headers: { Accept: 'application/json' } })
-      const j = await r.json()
-      if (j?.display_name) setAddr(j.display_name)
-    } catch {}
-  }
-
-  function handlePick() {
-    const la = parseFloat(pickLat), ln = parseFloat(pickLng)
-    if (isNaN(la) || isNaN(ln)) return
-    onPick({ lat: la, lng: ln, address: addr || undefined })
-    if (!addr) reverse(la, ln)
-  }
-
-  return (
-    <div className="space-y-2 rounded-xl border border-slate-200 p-3 bg-slate-50/50">
-      <p className="text-xs font-medium">Pick from map</p>
-      <div className="h-48 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <iframe
-          title="map"
-          style={{ width: '100%', height: '100%', border: 0 }}
-          loading="lazy"
-          src={`https://www.openstreetmap.org/export/embed.html?bbox=${(parseFloat(pickLng)||77)-0.02}%2C${(parseFloat(pickLat)||18.5)-0.015}%2C${(parseFloat(pickLng)||77)+0.02}%2C${(parseFloat(pickLat)||18.5)+0.015}&layer=mapnik&marker=${parseFloat(pickLat)||18.52}%2C${parseFloat(pickLng)||73.85}`}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div><Label>Latitude</Label><Input value={pickLat} onChange={e=>setPickLat(e.target.value)} placeholder="18.5204" /></div>
-        <div><Label>Longitude</Label><Input value={pickLng} onChange={e=>setPickLng(e.target.value)} placeholder="73.8567" /></div>
-      </div>
-      <div className="flex gap-2">
-        <Button size="sm" onClick={handlePick}><MapPin className="h-3.5 w-3.5"/> Use these coords</Button>
-        <Button size="sm" variant="secondary" onClick={()=>{
-          setLoading(true)
-          if (!addr) { reverse(parseFloat(pickLat)||18.52, parseFloat(pickLng)||73.85).finally(()=>setLoading(false)) } else setLoading(false)
-        }}>{loading?'…':'Fill address from coords'}</Button>
-      </div>
-      {addr && <p className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-2">{addr}</p>}
-      <p className="text-[11px] text-slate-500">Tip: open <a href="https://www.openstreetmap.org" target="_blank" className="underline">openstreetmap.org</a>, right-click → Show address → copy lat/lng, or just type coords above and click on the embedded map area then manually adjust.</p>
-    </div>
-  )
-}
+const PAPERS_ALL = ['A4','A3','A5','LETTER','LEGAL'] as const
 
 export default function ShopManage() {
   const [shops, setShops] = useState<Shop[] | null>(null)
@@ -70,10 +23,39 @@ export default function ShopManage() {
   const [editForm, setEditForm] = useState({ name:'', addressLine1:'', addressLine2:'', city:'', state:'', pincode:'', phone:'', latitude:'', longitude:'' })
   const [showMap, setShowMap] = useState(false)
   const [showEditMap, setShowEditMap] = useState(false)
+  const [resourceShop, setResourceShop] = useState<Shop | null>(null)
+  const [inventory, setInventory] = useState<any[] | null>(null)
+  const [resBusy, setResBusy] = useState<string | null>(null)
 
   function load() {
     setErr('')
     api.get('/shops/mine').then(r=>setShops(r.data ?? [])).catch(e=>setErr(apiErrorMessage(e)))
+  }
+  function loadInventory(shopId: string){
+    setInventory(null)
+    api.get(`/shops/${shopId}/inventory`).then(r=>setInventory(r.data ?? [])).catch(e=>setErr(apiErrorMessage(e)))
+  }
+  function openResources(s: Shop){
+    setResourceShop(s); loadInventory(s.id)
+  }
+  async function togglePaper(paperSize: string, enable: boolean){
+    if (!resourceShop) return
+    setResBusy(paperSize)
+    try {
+      if (enable){
+        await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize, gsm: 80, quantitySheets: 500, lowStockThreshold: 50, isAvailable: true })
+      } else {
+        const row = inventory?.find(r=>r.paperSize===paperSize)
+        if (row) await api.delete(`/shops/${resourceShop.id}/inventory/${row.id}`)
+      }
+      loadInventory(resourceShop.id)
+    } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
+  }
+  async function updateQty(row: any, delta: number){
+    if (!resourceShop) return
+    const next = Math.max(0, (row.quantitySheets ?? 0) + delta)
+    setResBusy(row.id)
+    try { await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize: row.paperSize, gsm: row.gsm, quantitySheets: next, lowStockThreshold: row.lowStockThreshold }); loadInventory(resourceShop.id) } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
   }
   useEffect(()=>{ load() },[])
 
@@ -160,6 +142,7 @@ export default function ShopManage() {
                 <p className="text-xs text-slate-500 truncate flex items-center gap-1"><MapPin className="h-3 w-3"/>{[s.addressLine1, s.city, s.pincode].filter(Boolean).join(', ') || 'No address'} {s.latitude ? `• ${s.latitude.toFixed(4)}, ${s.longitude?.toFixed(4)}` : ''}</p>
               </div>
               <div className="flex gap-1.5">
+                <Button size="sm" variant="secondary" onClick={()=>openResources(s)}><Boxes className="h-3.5 w-3.5"/> Resources</Button>
                 <Button size="sm" variant="secondary" onClick={()=>openEdit(s)}><Pencil className="h-3.5 w-3.5"/> Edit</Button>
                 <Button size="sm" variant="ghost" onClick={()=>{ setDeleteTarget(s); setDeletePwd(''); setErr('') }}><Trash2 className="h-3.5 w-3.5"/> Delete</Button>
               </div>
@@ -183,9 +166,17 @@ export default function ShopManage() {
             <Button size="sm" variant="secondary" onClick={()=>setShowMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showMap?'Hide map':'Pick from map'}</Button>
             <span className="text-xs text-slate-500">or type lat/lng below</span>
           </div>
-          {showMap && <MapPicker lat={form.latitude?parseFloat(form.latitude):null} lng={form.longitude?parseFloat(form.longitude):null} onPick={({lat,lng,address})=>{
-            setForm(p=>({...p, latitude:String(lat), longitude:String(lng)}))
-            if (address && !p_address_has(form.addressLine1)) setForm(p=>({...p, addressLine1: address.slice(0,200)}))
+          {showMap && <MapPicker lat={form.latitude?parseFloat(form.latitude):null} lng={form.longitude?parseFloat(form.longitude):null} onPick={({lat,lng,displayName,address})=>{
+            setForm(p=>{
+              const next={...p, latitude:String(lat), longitude:String(lng)}
+              if (displayName && !p.addressLine1.trim()) next.addressLine1 = displayName.slice(0,200)
+              if (address){
+                if (!p.city.trim() && (address.city || address.town || address.village || address.county)) next.city = (address.city || address.town || address.village || address.county || '').slice(0,80)
+                if (!p.state.trim() && address.state) next.state = address.state.slice(0,80)
+                if (!p.pincode.trim() && address.postcode) next.pincode = address.postcode.slice(0,12)
+              }
+              return next
+            })
           }} />}
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Latitude</Label><Input value={form.latitude} onChange={e=>setForm(p=>({...p,latitude:e.target.value}))} placeholder="18.5204" /></div>
@@ -214,7 +205,18 @@ export default function ShopManage() {
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={()=>setShowEditMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showEditMap?'Hide map':'Pick from map'}</Button>
             </div>
-            {showEditMap && <MapPicker lat={editForm.latitude?parseFloat(editForm.latitude):null} lng={editForm.longitude?parseFloat(editForm.longitude):null} onPick={({lat,lng})=>setEditForm(p=>({...p, latitude:String(lat), longitude:String(lng)}))} />}
+            {showEditMap && <MapPicker lat={editForm.latitude?parseFloat(editForm.latitude):null} lng={editForm.longitude?parseFloat(editForm.longitude):null} onPick={({lat,lng,displayName,address})=>{
+              setEditForm(p=>{
+                const next={...p, latitude:String(lat), longitude:String(lng)}
+                if (displayName && !p.addressLine1.trim()) next.addressLine1 = displayName.slice(0,200)
+                if (address){
+                  if (!p.city.trim() && (address.city || address.town || address.village)) next.city = (address.city || address.town || address.village || '').slice(0,80)
+                  if (!p.state.trim() && address.state) next.state = address.state.slice(0,80)
+                  if (!p.pincode.trim() && address.postcode) next.pincode = address.postcode.slice(0,12)
+                }
+                return next
+              })
+            }} />}
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Latitude</Label><Input value={editForm.latitude} onChange={e=>setEditForm(p=>({...p,latitude:e.target.value}))} /></div>
               <div><Label>Longitude</Label><Input value={editForm.longitude} onChange={e=>setEditForm(p=>({...p,longitude:e.target.value}))} /></div>
@@ -223,6 +225,40 @@ export default function ShopManage() {
               <Button variant="secondary" onClick={()=>setEditing(null)}>Cancel</Button>
               <Button onClick={doRename} loading={busy}><Save className="h-4 w-4"/> Save</Button>
             </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog open={!!resourceShop} onClose={()=>setResourceShop(null)} title={resourceShop ? `Resources — ${resourceShop.name}` : 'Resources'}>
+        {resourceShop && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500">Select what paper & stock is available now. Customers only see available sizes; toggle off hides it from checkout.</p>
+            {inventory===null ? <p className="text-sm text-slate-500">Loading…</p> : (
+              <div className="grid gap-2">
+                {PAPERS_ALL.map(p=>{
+                  const row = inventory.find(r=>r.paperSize===p)
+                  const enabled = !!row
+                  const low = row && row.quantitySheets <= row.lowStockThreshold
+                  return (
+                    <div key={p} className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${enabled?'bg-white border-slate-200':'bg-slate-50 border-dashed border-slate-200 opacity-75'}`}>
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input type="checkbox" checked={enabled} onChange={e=>togglePaper(p, e.target.checked)} disabled={!!resBusy} className="h-4 w-4 rounded" />
+                        {p} {row?.gsm ? `· ${row.gsm}gsm` : ''}
+                        {enabled && <Badge tone={low?'warning':'success'} className="ml-1">{row.quantitySheets} sheets</Badge>}
+                      </label>
+                      {enabled ? (
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={()=>updateQty(row,-50)} disabled={!!resBusy}>−</Button>
+                          <Button size="sm" variant="ghost" onClick={()=>updateQty(row,50)} disabled={!!resBusy}>+</Button>
+                          <Button size="sm" variant="ghost" onClick={()=>togglePaper(p,false)}><XCircle className="h-3.5 w-3.5"/></Button>
+                        </div>
+                      ) : <span className="text-xs text-slate-400">Not offered</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex justify-end"><Button variant="secondary" onClick={()=>setResourceShop(null)}><Check className="h-4 w-4"/> Done</Button></div>
           </div>
         )}
       </Dialog>
@@ -242,4 +278,4 @@ export default function ShopManage() {
     </div>
   )
 }
-function p_address_has(a: string){ return a && a.trim().length>0 }
+
