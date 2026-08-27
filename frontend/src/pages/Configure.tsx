@@ -94,17 +94,17 @@ export default function Configure() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-6">
-        <Stepper steps={['Upload','Configure','Preview','Pay']} current={1} />
+    <div className="mx-auto max-w-6xl px-4 sm:px-0 overflow-x-hidden">
+      <div className="mb-6 overflow-x-auto">
+        <Stepper steps={['Upload','Configure','Pay']} current={1} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
-        {/* Left - form */}
-        <div className="space-y-6">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1.4fr_0.9fr] min-w-0">
+        {/* Left - form — single flow: paper → calculate → confirm/pay */}
+        <div className="space-y-5 min-w-0">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{isReprint ? 'Reprint — configure' : 'Configure print'}</h1>
-            <p className="mt-1 text-sm text-slate-500">{docs.length} document{docs.length>1?'s':''} • Set paper, color & copies — price updates live</p>
+            <p className="mt-1 text-sm text-slate-500">{docs.length} document{docs.length>1?'s':''} • Choose paper & copies → tap <b>Calculate price</b> → Confirm & pay. That’s it.</p>
           </div>
 
           <Card className="p-5 sm:p-6">

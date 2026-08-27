@@ -117,8 +117,12 @@ export default function ShopManage() {
       payload.latitude = editForm.latitude ? parseFloat(editForm.latitude) : null
       payload.longitude = editForm.longitude ? parseFloat(editForm.longitude) : null
       try { await api.patch(`/shops/${editing.id}`, payload) } catch (e:any) {
-        if (e?.response?.status === 405) await api.put(`/shops/${editing.id}`, payload)
-        else throw e
+        if (e?.response?.status === 405) {
+          try { await api.put(`/shops/${editing.id}`, payload) } catch (e2:any) {
+            if (e2?.response?.status === 405) await api.post(`/shops/${editing.id}`, payload)
+            else throw e2
+          }
+        } else throw e
       }
       setEditing(null); load()
     } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setBusy(false) }

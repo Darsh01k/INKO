@@ -92,10 +92,11 @@ public class ShopController {
         return toDto(shop);
     }
 
-    @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT, RequestMethod.POST})
     public ShopSummaryDto update(@AuthenticationPrincipal InkoPrincipal principal,
                                  @PathVariable UUID id,
-                                 @RequestBody Map<String, Object> body) {
+                                 @RequestBody(required = false) Map<String, Object> body) {
+        if (body == null) body = Map.of();
         requireKeeper(principal);
         Shop shop = shops.findById(id).orElseThrow(() -> ApiException.notFound("Shop not found"));
         if (!principal.userId().equals(shop.getOwnerUserId())) {

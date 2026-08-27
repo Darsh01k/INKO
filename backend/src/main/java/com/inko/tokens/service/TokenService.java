@@ -19,9 +19,11 @@ public class TokenService {
     private final TokenSequenceRepository sequences;
     private final QueueEntryRepository queue;
     private final com.inko.orders.repo.OrderRepository ordersRepo;
+    private final com.inko.catalog.repo.ShopPaperInventoryRepository inventoryRepo;
+    private final com.inko.shops.repo.ShopRepository shopRepo;
 
-    public TokenService(TokenRepository tokens, TokenSequenceRepository sequences, QueueEntryRepository queue, com.inko.orders.repo.OrderRepository ordersRepo) {
-        this.tokens = tokens; this.sequences = sequences; this.queue = queue; this.ordersRepo = ordersRepo;
+    public TokenService(TokenRepository tokens, TokenSequenceRepository sequences, QueueEntryRepository queue, com.inko.orders.repo.OrderRepository ordersRepo, com.inko.catalog.repo.ShopPaperInventoryRepository inventoryRepo, com.inko.shops.repo.ShopRepository shopRepo) {
+        this.tokens = tokens; this.sequences = sequences; this.queue = queue; this.ordersRepo = ordersRepo; this.inventoryRepo = inventoryRepo; this.shopRepo = shopRepo;
     }
 
     @Transactional
@@ -91,19 +93,51 @@ public class TokenService {
                         default -> null;
                     };
                     if (targetOrder != null) {
-                        com.inko.orders.domain.OrderStatus curEnum = com.inko.orders.domain.OrderStatus.valueOf(cur);
-                        if (curEnum.canTransitionTo(targetOrder) || cur.equals("QUEUED")) {
-                            o.setStatus(targetOrder.name());
-                            ordersRepo.save(o);
-                        } else if (target == TokenStatus.PRINTING && cur.equals("QUEUED")) {
-                            o.setStatus(com.inko.orders.domain.OrderStatus.PRINTING.name());
-                            ordersRepo.save(o);
-                        } else if (target == TokenStatus.COMPLETED) {
-                            o.setStatus(com.inko.orders.domain.OrderStatus.COMPLETED.name());
-                            ordersRepo.save(o);
+                        try {
+                            com.inko.orders.domain.OrderStatus curEnum = com.inko.orders.domain.OrderStatus.valueOf(cur);
+                            if (curEnum.canTransitionTo(targetOrder) || cur.equals("QUEUED")) {
+                                o.setStatus(targetOrder.name());
+                                ordersRepo.save(o);
+                            } else if (target == TokenStatus.PRINTING && cur.equals("QUEUED")) {
+                                o.setStatus(com.inko.orders.domain.OrderStatus.PRINTING.name());
+                                ordersRepo.save(o);
+                            } else if (target == TokenStatus.COMPLETED) {
+                                o.setStatus(com.inko.orders.domain.OrderStatus.COMPLETED.name());
+                                ordersRepo.save(o);
+                            }
+                        } catch (Exception ex) {
+                            if (target == TokenStatus.COMPLETED) { o.setStatus(com.inko.orders.domain.OrderStatus.COMPLETED.name()); ordersRepo.save(o); }
+                            if (target == TokenStatus.PRINTING && cur.equals("QUEUED")) { o.setStatus(com.inko.orders.domain.OrderStatus.PRINTING.name()); ordersRepo.save(o); }
                         }
                     }
                 } catch (Exception ignored) {}
+                if (target == TokenStatus.PRINTING) {
+                    try {
+                        int dec = o.getTotalPages() * Math.max(1, o.getCopies());
+                        var invRows = inventoryRepo.findByShopIdOrderByPaperSizeAscGsmAsc(t.getShopId());
+                        if (!invRows.isEmpty()) {
+                            for (var row : invRows) {
+                                if (row.getQuantitySheets() > 0) {
+                                    int next = Math.max(0, row.getQuantitySheets() - dec);
+                                    row.setQuantitySheets(next);
+                                    inventoryRepo.save(row);
+                                    if (next <= row.getLowStockThreshold()) {
+                                        try {
+                                            var shop = shopRepo.findById(t.getShopId()).orElse(null);
+                                            var owner = shop != null ? shop.getOwnerUserId() : null;
+                                            if (owner != null) {
+                                                var notifier2 = (com.inko.notifications.service.NotificationService) org.springframework.web.context.ContextLoader.getCurrentWebApplicationContext().getBean(com.inko.notifications.service.NotificationService.class);
+                                                int waiting = queue.findByShopIdAndStatusOrderByPositionAsc(t.getShopId(), "WAITING").size();
+                                                notifier2.create(owner, "LOW_STOCK", "Low paper: " + row.getPaperSize(), row.getPaperSize() + " only " + next + " sheets left — queue has " + waiting + " waiting. Please add papers.", "/shop/shops");
+                                            }
+                                        } catch (Exception ignored2) {}
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
                 try {
                     var userId = o.getCustomerId();
                     String title = switch (target) {

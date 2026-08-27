@@ -57,12 +57,23 @@ export default function QueueManage() {
   }
 
   const [acting, setActing] = useState<string | null>(null)
+  const [completed, setCompleted] = useState<any[]>([])
+  async function loadCompleted(){
+    if (!shopId) return
+    try { const r = await api.get(`/orders/shop/${shopId}`); const list = Array.isArray(r.data)? r.data: []; setCompleted(list.filter((o:any)=> String(o.status).toUpperCase()==='COMPLETED').slice(0,8)) } catch {}
+  }
+  useEffect(()=>{ if(shopId) loadCompleted() }, [shopId, tokens])
   async function act(id: string, status: string) {
     if (acting) return
     setActing(id + ':' + status); setErr('')
     try {
       await api.post(`/tokens/${id}/transition`, { targetStatus: status })
-      await load()
+      await load(); await loadCompleted()
+      if (status === 'CALLED') {
+        setTimeout(async () => {
+          try { await api.post(`/tokens/${id}/transition`, { targetStatus: 'PRINTING' }); await load(); await loadCompleted() } catch {}
+        }, 2000)
+      }
     } catch (e: any) {
       const msg = apiErrorMessage(e)
       if (msg.includes('Invalid transition') && msg.includes('COMPLETED')) {
@@ -217,6 +228,24 @@ export default function QueueManage() {
       )}
 
       {err && <Alert>{err}</Alert>}
+
+      {completed.length > 0 && (
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600"/> Completed — ready to collect <Badge tone="success">{completed.length}</Badge></h3>
+          <p className="text-xs text-slate-500 mt-1">Visible on mobile — hand over prints and mark done. Auto-clears after collection.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {completed.map((o:any)=>(
+              <div key={o.id} className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">{o.orderNumber ?? o.id.slice(0,8)} <span className="text-xs text-emerald-700">• ₹{o.finalAmount ?? '—'}</span></p>
+                  <p className="text-xs text-slate-500">{o.totalPages ?? '?'} pages • {new Date(o.createdAt).toLocaleDateString()}</p>
+                </div>
+                <Badge tone="success">Done</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-2">
         {filtered.map(t => (
