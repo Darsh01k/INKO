@@ -92,6 +92,7 @@ public class ShopController {
     }
 
     @PatchMapping("/{id}")
+    @PutMapping("/{id}")
     public ShopSummaryDto update(@AuthenticationPrincipal InkoPrincipal principal,
                                  @PathVariable UUID id,
                                  @RequestBody Map<String, Object> body) {

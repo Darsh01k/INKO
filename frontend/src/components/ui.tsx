@@ -172,10 +172,10 @@ export function Dialog({ open, onClose, children, title }: { open: boolean; onCl
   }, [open, onClose])
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-modal="true" aria-label={title} className="relative z-10 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-slate-200 animate-in">
-        {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
+      <div role="dialog" aria-modal="true" aria-label={title} className="relative z-10 w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-xl border border-slate-200 animate-in">
+        {title && <h3 className="text-lg font-semibold mb-3 sticky top-0 bg-white pb-2 -mx-1 px-1">{title}</h3>}
         {children}
       </div>
     </div>

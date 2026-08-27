@@ -21,7 +21,13 @@ const COLORS: Array<'BW'|'COLOR'> = ['BW','COLOR']
 const SIDES: Array<'SINGLE'|'DOUBLE'> = ['SINGLE','DOUBLE']
 const todayIso = () => new Date().toISOString().slice(0,10)
 const keyOf = (p:string,c:string,s:string)=>`${p}-${c}-${s}`
-
+function marketPrice(paper:string, color:string, sides:string): number {
+  const base: Record<string, number> = { A4:2, A3:4, A5:1.5, LETTER:2, LEGAL:2.5 }
+  const b = base[paper] ?? 2
+  const colorMul = color==='COLOR' ? 4 : 1
+  const sideMul = sides==='DOUBLE' ? 0.9 : 1
+  return Math.round(b * colorMul * sideMul * 2)/2
+}
 function priceKey(r: PricingRule){ return keyOf(r.paperSize, r.colorMode, r.sidesMode) }
 
 export default function ShopPricing() {
@@ -31,8 +37,9 @@ export default function ShopPricing() {
   const [discounts, setDiscounts] = useState<DiscountRule[] | null>(null)
   const [tab, setTab] = useState<'rules' | 'discounts'>('rules')
   const [err, setErr] = useState('')
-  const [busyId, setBusyId] = useState<string|null>(null)
+  const [savingAll, setSavingAll] = useState(false)
   const [edits, setEdits] = useState<Record<string, { price:string, effectiveFrom:string }>>({})
+  const [showKeepBanner, setShowKeepBanner] = useState(false)
   const [newDiscount, setNewDiscount] = useState({ name: '', type: 'PERCENT', value: 10, minOrderAmount: '', maxDiscountAmount: '' })
 
   useEffect(() => {
@@ -49,12 +56,15 @@ export default function ShopPricing() {
       const list = (r.data ?? []).filter((x: PricingRule) => x.shopId === shopId)
       setRules(list)
       const init: Record<string,{price:string,effectiveFrom:string}> = {}
+      let filled = 0
       for (const paper of PAPERS) for (const c of COLORS) for (const s of SIDES) {
         const k = keyOf(paper,c,s)
         const found = list.find((x: PricingRule)=>priceKey(x)===k)
-        init[k] = { price: found ? String(found.pricePerPage) : '', effectiveFrom: found?.effectiveFrom ?? todayIso() }
+        if (found) init[k] = { price: String(found.pricePerPage), effectiveFrom: found.effectiveFrom ?? todayIso() }
+        else { init[k] = { price: String(marketPrice(paper,c,s)), effectiveFrom: todayIso() }; filled++ }
       }
       setEdits(init)
+      setShowKeepBanner(filled>0 && list.length < PAPERS.length*COLORS.length*SIDES.length)
     }).catch(e => setErr(apiErrorMessage(e)))
     api.get('/discounts').then(r => setDiscounts((r.data ?? []).filter((x: DiscountRule) => x.shopId === shopId))).catch(e => setErr(apiErrorMessage(e)))
   }
@@ -66,34 +76,29 @@ export default function ShopPricing() {
     return m
   },[rules])
 
-  async function saveRow(paper:string,color:string,sides:string){
-    const k = keyOf(paper,color,sides)
-    const e = edits[k]
-    if (!e || e.price===''){ setErr(`Enter price for ${k.replaceAll('-',' · ')}`); return }
-    const price = Number(e.price)
-    if (isNaN(price) || price < 0){ setErr('Price must be >= 0'); return }
-    const existing = ruleByKey.get(k)
-    setBusyId(k); setErr('')
-    try {
-      if (existing){
-        await api.put(`/pricing/rules/${existing.id}`, {
-          scope:'SHOP', shopId, paperSize: paper, colorMode: color, sidesMode: sides,
-          pricePerPage: price, effectiveFrom: e.effectiveFrom || todayIso(), active: true
-        })
-        toast('Price updated', 'success')
-      } else {
-        await api.post('/pricing/rules', {
-          scope:'SHOP', shopId, paperSize: paper, colorMode: color, sidesMode: sides,
-          pricePerPage: price, effectiveFrom: e.effectiveFrom || todayIso(), active: true
-        })
-        toast('Price created', 'success')
-      }
-      load()
-    } catch(ex:any){
-      const d = ex?.response?.data?.details
-      const detailMsg = d ? ': ' + Object.entries(d).map(([kk,v])=>`${kk} ${v}`).join(', ') : ''
-      setErr(apiErrorMessage(ex) + detailMsg)
-    } finally { setBusyId(null) }
+  async function saveAll(){
+    if (!shopId) return
+    setSavingAll(true); setErr('')
+    let ok=0, fail=0
+    for (const paper of PAPERS) for (const c of COLORS) for (const s of SIDES){
+      const k = keyOf(paper,c,s)
+      const e = edits[k]
+      if (!e || e.price==='') continue
+      const price = Number(e.price)
+      if (isNaN(price) || price < 0) continue
+      const existing = ruleByKey.get(k)
+      const payload:any = { scope:'SHOP', shopId, paperSize: paper, colorMode: c, sidesMode: s, pricePerPage: price, effectiveFrom: e.effectiveFrom || todayIso(), active: true }
+      try {
+        if (existing) await api.put(`/pricing/rules/${existing.id}`, payload)
+        else await api.post('/pricing/rules', payload)
+        ok++
+      } catch { fail++ }
+    }
+    setSavingAll(false)
+    if (fail===0) toast(`Saved ${ok} prices`, 'success')
+    else toast(`Saved ${ok}, ${fail} failed — check errors`, fail ? 'error' : 'success')
+    setShowKeepBanner(false)
+    load()
   }
 
   async function deleteRule(id: string) {
@@ -152,38 +157,42 @@ export default function ShopPricing() {
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold">All pricing types — edit any price inline</h3>
-              <p className="text-xs text-slate-500">Each row is one <b>paper × color × sides</b> type. Set price and Save. Green row = already priced, white = uses platform default until you Save.</p>
+              <p className="text-xs text-slate-500">Market prices pre-filled for missing types — review, edit if needed, then <b>Save All</b>.</p>
             </div>
             <Button size="sm" variant="secondary" onClick={load}><RefreshCw className="h-3.5 w-3.5"/> Reload</Button>
           </div>
+          {showKeepBanner && (
+            <div className="mx-4 mt-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-indigo-900">We filled correct market prices for your missing types. Want to keep these prices?</p>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={()=>setShowKeepBanner(false)} variant="secondary">Edit first</Button>
+                <Button size="sm" onClick={saveAll} loading={savingAll}><Save className="h-3.5 w-3.5"/> Keep & Save All</Button>
+              </div>
+            </div>
+          )}
           {rules===null ? (
             <div className="p-4 space-y-2">{[1,2,3,4].map(i=><Skeleton key={i} className="h-12 w-full"/>)}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs tracking-widest text-slate-500">
-                  <tr><th className="px-3 py-2.5 text-left">Paper</th><th className="px-3 py-2.5 text-left">Color</th><th className="px-3 py-2.5 text-left">Sides</th><th className="px-3 py-2.5 text-left w-32">₹/page *</th><th className="px-3 py-2.5 text-left w-36">Effective from</th><th className="px-3 py-2.5 text-left">Status</th><th className="px-3 py-2.5 text-right">Action</th></tr>
+                  <tr><th className="px-3 py-2.5 text-left">Paper</th><th className="px-3 py-2.5 text-left">Color</th><th className="px-3 py-2.5 text-left">Sides</th><th className="px-3 py-2.5 text-left w-32">₹/page *</th><th className="px-3 py-2.5 text-left w-36">Effective from</th><th className="px-3 py-2.5 text-left">Status</th><th className="px-3 py-2.5 text-right"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {PAPERS.flatMap(paper=>COLORS.flatMap(color=>SIDES.map(sides=>{
                     const k = keyOf(paper,color,sides)
                     const existing = ruleByKey.get(k)
-                    const e = edits[k] ?? { price:'', effectiveFrom: todayIso() }
+                    const e = edits[k] ?? { price: String(marketPrice(paper,color,sides)), effectiveFrom: todayIso() }
                     const isExisting = !!existing
                     return (
-                      <tr key={k} className={isExisting ? 'bg-emerald-50/30' : 'hover:bg-slate-50'}>
+                      <tr key={k} className={isExisting ? 'bg-emerald-50/30' : 'bg-amber-50/20 hover:bg-slate-50'}>
                         <td className="px-3 py-2 font-medium">{paper}</td>
                         <td className="px-3 py-2"><Badge tone={color==='COLOR'?'brand':'neutral'}>{color}</Badge></td>
                         <td className="px-3 py-2 text-slate-500 text-xs">{sides}</td>
-                        <td className="px-3 py-2"><Input type="number" min={0} step={0.5} placeholder="—" value={e.price} onChange={ev=>setEdits(prev=>({...prev,[k]:{...prev[k], price: ev.target.value}}))} className="h-8" /></td>
+                        <td className="px-3 py-2"><Input type="number" min={0} step={0.5} value={e.price} onChange={ev=>setEdits(prev=>({...prev,[k]:{...prev[k], price: ev.target.value}}))} className="h-8" /></td>
                         <td className="px-3 py-2"><Input type="date" value={e.effectiveFrom} onChange={ev=>setEdits(prev=>({...prev,[k]:{...prev[k], effectiveFrom: ev.target.value}}))} className="h-8" /></td>
-                        <td className="px-3 py-2">{isExisting ? <Badge tone="success">₹{existing!.pricePerPage}</Badge> : <Badge tone="neutral">default</Badge>}</td>
-                        <td className="px-3 py-2 text-right">
-                          <div className="inline-flex gap-1">
-                            <Button size="sm" variant={isExisting?'secondary':'primary'} loading={busyId===k} onClick={()=>saveRow(paper,color,sides)}><Save className="h-3.5 w-3.5"/>{isExisting?'Update':'Save'}</Button>
-                            {isExisting && <Button size="sm" variant="ghost" onClick={()=>deleteRule(existing!.id)}><Trash2 className="h-3.5 w-3.5"/></Button>}
-                          </div>
-                        </td>
+                        <td className="px-3 py-2">{isExisting ? <Badge tone="success">₹{existing!.pricePerPage}</Badge> : <Badge tone="warning">market ₹{marketPrice(paper,color,sides)}</Badge>}</td>
+                        <td className="px-3 py-2 text-right">{isExisting && <Button size="sm" variant="ghost" onClick={()=>deleteRule(existing!.id)}><Trash2 className="h-3.5 w-3.5"/></Button>}</td>
                       </tr>
                     )
                   })))}
@@ -191,7 +200,9 @@ export default function ShopPricing() {
               </table>
             </div>
           )}
-          <div className="p-3 bg-amber-50 border-t border-amber-200 text-xs text-amber-800 rounded-b-2xl">Tip: fill every type you support and click Save per row. Prices are editable anytime — Update re-saves. Effective from defaults to today.</div>
+          <div className="p-4 border-t border-slate-200 bg-white flex justify-end">
+            <Button onClick={saveAll} loading={savingAll} size="lg"><Save className="h-4 w-4"/> Save All Prices</Button>
+          </div>
         </Card>
       )}
 

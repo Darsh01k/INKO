@@ -43,7 +43,7 @@ export default function ShopManage() {
     setResBusy(paperSize)
     try {
       if (enable){
-        await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize, gsm: 80, quantitySheets: 500, lowStockThreshold: 50, isAvailable: true })
+        await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize, gsm: 80, quantitySheets: 200, lowStockThreshold: 20, isAvailable: true })
       } else {
         const row = inventory?.find(r=>r.paperSize===paperSize)
         if (row) await api.delete(`/shops/${resourceShop.id}/inventory/${row.id}`)
@@ -51,11 +51,12 @@ export default function ShopManage() {
       loadInventory(resourceShop.id)
     } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
   }
-  async function updateQty(row: any, delta: number){
+  async function updateQty(row: any, nextQty: number){
     if (!resourceShop) return
-    const next = Math.max(0, (row.quantitySheets ?? 0) + delta)
+    const next = Math.max(0, nextQty)
+    const remindAt = Math.max(5, Math.min(100, Math.round(next > 20 ? 20 : Math.max(5, next * 0.1))))
     setResBusy(row.id)
-    try { await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize: row.paperSize, gsm: row.gsm, quantitySheets: next, lowStockThreshold: row.lowStockThreshold }); loadInventory(resourceShop.id) } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
+    try { await api.put(`/shops/${resourceShop.id}/inventory`, { paperSize: row.paperSize, gsm: row.gsm, quantitySheets: next, lowStockThreshold: remindAt, isAvailable: true }); loadInventory(resourceShop.id) } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setResBusy(null) }
   }
   useEffect(()=>{ load() },[])
 
@@ -97,7 +98,10 @@ export default function ShopManage() {
       const payload: any = { name: editForm.name.trim(), addressLine1: editForm.addressLine1.trim() || null, addressLine2: editForm.addressLine2.trim() || null, city: editForm.city.trim() || null, state: editForm.state.trim() || null, pincode: editForm.pincode.trim() || null, phone: editForm.phone.trim() || null }
       payload.latitude = editForm.latitude ? parseFloat(editForm.latitude) : null
       payload.longitude = editForm.longitude ? parseFloat(editForm.longitude) : null
-      await api.patch(`/shops/${editing.id}`, payload)
+      try { await api.patch(`/shops/${editing.id}`, payload) } catch (e:any) {
+        if (e?.response?.status === 405) await api.put(`/shops/${editing.id}`, payload)
+        else throw e
+      }
       setEditing(null); load()
     } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setBusy(false) }
   }
@@ -160,7 +164,7 @@ export default function ShopManage() {
             <div><Label>City {form.addressLine1.trim()?'*':''}</Label><Input value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))} placeholder="Pune" /></div>
             <div><Label>State</Label><Input value={form.state} onChange={e=>setForm(p=>({...p,state:e.target.value}))} placeholder="Maharashtra" /></div>
             <div><Label>Pincode</Label><Input value={form.pincode} onChange={e=>setForm(p=>({...p,pincode:e.target.value}))} placeholder="411038" /></div>
-            <div><Label>Phone</Label><Input value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="98765..." /></div>
+            <div><Label>Phone</Label><Input type="tel" inputMode="numeric" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="9876543210" /></div>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="secondary" onClick={()=>setShowMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showMap?'Hide map':'Pick from map'}</Button>
@@ -200,7 +204,7 @@ export default function ShopManage() {
               <div><Label>City {editForm.addressLine1.trim()?'*':''}</Label><Input value={editForm.city} onChange={e=>setEditForm(p=>({...p,city:e.target.value}))} /></div>
               <div><Label>State</Label><Input value={editForm.state} onChange={e=>setEditForm(p=>({...p,state:e.target.value}))} /></div>
               <div><Label>Pincode</Label><Input value={editForm.pincode} onChange={e=>setEditForm(p=>({...p,pincode:e.target.value}))} /></div>
-              <div><Label>Phone</Label><Input value={editForm.phone} onChange={e=>setEditForm(p=>({...p,phone:e.target.value}))} /></div>
+              <div><Label>Phone</Label><Input type="tel" inputMode="numeric" value={editForm.phone} onChange={e=>setEditForm(p=>({...p,phone:e.target.value}))} /></div>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={()=>setShowEditMap(v=>!v)}><MapPin className="h-3.5 w-3.5"/>{showEditMap?'Hide map':'Pick from map'}</Button>
@@ -232,7 +236,7 @@ export default function ShopManage() {
       <Dialog open={!!resourceShop} onClose={()=>setResourceShop(null)} title={resourceShop ? `Resources — ${resourceShop.name}` : 'Resources'}>
         {resourceShop && (
           <div className="space-y-3">
-            <p className="text-xs text-slate-500">Select what paper & stock is available now. Customers only see available sizes; toggle off hides it from checkout.</p>
+            <p className="text-xs text-slate-500">Tick what you offer, then type <b>how many sheets left</b>. We'll remind you <b>20 sheets before</b> you run out (or 10% if stock is small) so you can reorder — no need for exact count, just your best guess.</p>
             {inventory===null ? <p className="text-sm text-slate-500">Loading…</p> : (
               <div className="grid gap-2">
                 {PAPERS_ALL.map(p=>{
@@ -240,19 +244,24 @@ export default function ShopManage() {
                   const enabled = !!row
                   const low = row && row.quantitySheets <= row.lowStockThreshold
                   return (
-                    <div key={p} className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${enabled?'bg-white border-slate-200':'bg-slate-50 border-dashed border-slate-200 opacity-75'}`}>
-                      <label className="flex items-center gap-2 text-sm font-medium">
-                        <input type="checkbox" checked={enabled} onChange={e=>togglePaper(p, e.target.checked)} disabled={!!resBusy} className="h-4 w-4 rounded" />
-                        {p} {row?.gsm ? `· ${row.gsm}gsm` : ''}
-                        {enabled && <Badge tone={low?'warning':'success'} className="ml-1">{row.quantitySheets} sheets</Badge>}
-                      </label>
-                      {enabled ? (
-                        <div className="flex items-center gap-1">
-                          <Button size="sm" variant="ghost" onClick={()=>updateQty(row,-50)} disabled={!!resBusy}>−</Button>
-                          <Button size="sm" variant="ghost" onClick={()=>updateQty(row,50)} disabled={!!resBusy}>+</Button>
-                          <Button size="sm" variant="ghost" onClick={()=>togglePaper(p,false)}><XCircle className="h-3.5 w-3.5"/></Button>
+                    <div key={p} className={`rounded-xl border p-3 ${enabled?'bg-white border-slate-200':'bg-slate-50 border-dashed border-slate-200 opacity-75'}`}>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <input type="checkbox" checked={enabled} onChange={e=>togglePaper(p, e.target.checked)} disabled={!!resBusy} className="h-4 w-4 rounded" />
+                          {p} {row?.gsm ? `· ${row.gsm}gsm` : ''}
+                        </label>
+                        {!enabled ? <span className="text-xs text-slate-400">Not offered</span> : <Badge tone={low?'warning':'success'} className="ml-1">{low ? `Low — ${row.quantitySheets} left` : `${row.quantitySheets} sheets`}</Badge>}
+                      </div>
+                      {enabled && (
+                        <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 items-end">
+                          <div>
+                            <Label>Paper left (sheets)</Label>
+                            <Input type="number" min={0} value={row.quantitySheets} onChange={e=>updateQty(row, Number(e.target.value) || 0)} placeholder="e.g. 200" />
+                            <p className="text-[11px] text-slate-500 mt-1">Remind when ≤ {row.lowStockThreshold} sheets ({row.lowStockThreshold} = 20 before empty). Just update this number when you restock.</p>
+                          </div>
+                          <Button size="sm" variant="ghost" onClick={()=>togglePaper(p,false)} className="h-10"><XCircle className="h-3.5 w-3.5"/> Remove</Button>
                         </div>
-                      ) : <span className="text-xs text-slate-400">Not offered</span>}
+                      )}
                     </div>
                   )
                 })}
