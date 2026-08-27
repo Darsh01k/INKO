@@ -3,6 +3,7 @@ import { api, apiErrorMessage } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import { Card, Button, Badge, EmptyState, Skeleton, Select } from '@/components/ui'
 import { Users, IndianRupee, Store, Activity, Clock3, Timer, Printer, Boxes } from 'lucide-react'
+import { useSettings } from '@/lib/settings'
 
 function KPI({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
   return (
@@ -20,6 +21,7 @@ function KPI({ icon: Icon, label, value, sub }: { icon: React.ElementType; label
 interface RevenuePoint { date?: string; day?: string; total?: string | number; revenue?: string | number }
 
 export default function ShopDashboard() {
+  const { t } = useSettings()
   const [stats, setStats] = useState<any>(null)
   const [shops, setShops] = useState<any[]>([])
   const [shopId, setShopId] = useState('')
@@ -60,8 +62,8 @@ export default function ShopDashboard() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Store className="h-6 w-6"/> Shop dashboard</h1>
-          <p className="text-sm text-slate-500">Queue-first operations • shop data live below (KPIs are platform-wide)</p>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Store className="h-6 w-6"/> {t('shopDashboard')}</h1>
+          <p className="text-sm text-slate-500">{t('queueFirstOps')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {shops.length > 0 && (
@@ -69,17 +71,17 @@ export default function ShopDashboard() {
               {shops.map(s => <option key={s.id} value={s.id}>{s.name} — {s.city}</option>)}
             </Select>
           )}
-          <Link to="/shop/queue"><Button><Activity className="h-4 w-4"/> Manage queue</Button></Link>
+          <Link to="/shop/queue"><Button><Activity className="h-4 w-4"/> {t('manageQueue')}</Button></Link>
         </div>
       </div>
 
       {err && <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</Card>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPI icon={Users} label="Platform orders" value={stats ? String(stats.totalOrders ?? stats.todayOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? `${stats.todayOrders} today` : undefined} />
-        <KPI icon={IndianRupee} label="Platform revenue" value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub="Net of refunds" />
-        <KPI icon={Store} label="Shops" value={stats ? String(stats.totalShops ?? shops.length) : String(shops.length)} sub={`${shops.filter(s => s.status === 'OPEN').length} open now`} />
-        <KPI icon={Timer} label="In queue" value={String(queueCount)} sub={queueCount > 0 ? `${queuePreview.length} shown below` : 'Top tokens (live)'} />
+        <KPI icon={Users} label={t('platformOrders')} value={stats ? String(stats.totalOrders ?? stats.todayOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? t('todaySuffix').replace('{n}', String(stats.todayOrders)) : undefined} />
+        <KPI icon={IndianRupee} label={t('platformRevenue')} value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub={t('netOfRefunds')} />
+        <KPI icon={Store} label={t('shopsLabel')} value={stats ? String(stats.totalShops ?? shops.length) : String(shops.length)} sub={t('openNow').replace('{n}', String(shops.filter(s => s.status === 'OPEN').length))} />
+        <KPI icon={Timer} label={t('inQueue')} value={String(queueCount)} sub={queueCount > 0 ? t('shownBelow').replace('{n}', String(queuePreview.length)) : t('topTokensLive')} />
       </div>
 
       {!stats && !err && (
@@ -89,13 +91,13 @@ export default function ShopDashboard() {
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <Card className="p-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Revenue by day</h3>
+            <h3 className="text-sm font-semibold">{t('revenueByDay')}</h3>
             <Badge tone="neutral">INR</Badge>
           </div>
           {revenue === null ? (
             <div className="mt-6 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-6 w-full" />)}</div>
           ) : revenue.length === 0 ? (
-            <EmptyState icon={IndianRupee} title="No revenue data yet" description="Revenue appears here after paid orders come in (GET /api/analytics/revenue)." />
+            <EmptyState icon={IndianRupee} title={t('noRevenueYet')} description={t('noRevenueDesc')} />
           ) : (
             <div className="mt-6 flex items-end gap-2 h-36">
               {revenue.map((p, i) => {
@@ -110,16 +112,16 @@ export default function ShopDashboard() {
             </div>
           )}
           <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-            <span className="h-2 w-2 rounded-full bg-indigo-600"/> Revenue per day
+            <span className="h-2 w-2 rounded-full bg-indigo-600"/> {t('revenuePerDay')}
           </div>
         </Card>
 
         <div className="space-y-4">
           <Card className="p-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><Timer className="h-4 w-4"/> Queue now</h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Timer className="h-4 w-4"/> {t('queueNow')}</h3>
             {queuePreview.length===0 ? (
               <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                No tokens — queue is clear
+                {t('noTokensClear')}
               </div>
             ) : (
               <div className="mt-3 grid gap-2">
@@ -131,13 +133,13 @@ export default function ShopDashboard() {
                 ))}
               </div>
             )}
-            <Link to="/shop/queue" className="mt-3 inline-flex text-sm font-medium text-[oklch(0.55_0.20_260)] hover:underline">Open queue →</Link>
+            <Link to="/shop/queue" className="mt-3 inline-flex text-sm font-medium text-[oklch(0.55_0.20_260)] hover:underline">{t('openQueue')}</Link>
           </Card>
 
           <Card className="p-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4"/> Printers</h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4"/> {t('printers')}</h3>
             {printers.length === 0 ? (
-              <EmptyState icon={Boxes} title="No printers registered" description="Add your shop printers to track status and paper sizes." />
+              <EmptyState icon={Boxes} title={t('noPrinters')} description={t('noPrintersDesc')} />
             ) : (
               <div className="mt-3 space-y-2">
                 {printers.map(pr => (
@@ -160,9 +162,9 @@ export default function ShopDashboard() {
           </Card>
 
           <Card className="p-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><Boxes className="h-4 w-4"/> Paper inventory</h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Boxes className="h-4 w-4"/> {t('paperInventory')}</h3>
             {inventory.length === 0 ? (
-              <EmptyState title="No stock tracked" description="Add paper stock rows to get low-stock alerts." />
+              <EmptyState title={t('noStockTracked')} description={t('noStockDesc')} />
             ) : (
               <div className="mt-3 space-y-2">
                 {inventory.map(row => {
@@ -174,7 +176,7 @@ export default function ShopDashboard() {
                         <button onClick={() => api.put(`/shops/${shopId}/inventory`, { paperSize: row.paperSize, gsm: row.gsm, quantitySheets: Math.max(0, row.quantitySheets - 50), lowStockThreshold: row.lowStockThreshold }).then(loadShopData)} className="h-6 w-6 rounded-lg border border-slate-200 hover:bg-slate-50">−</button>
                         <b>{row.quantitySheets}</b>
                         <button onClick={() => api.put(`/shops/${shopId}/inventory`, { paperSize: row.paperSize, gsm: row.gsm, quantitySheets: row.quantitySheets + 50, lowStockThreshold: row.lowStockThreshold }).then(loadShopData)} className="h-6 w-6 rounded-lg border border-slate-200 hover:bg-slate-50">+</button>
-                        {low && <Badge tone="warning">LOW</Badge>}
+                        {low && <Badge tone="warning">{t('lowBadge')}</Badge>}
                       </span>
                     </div>
                   )
@@ -186,13 +188,13 @@ export default function ShopDashboard() {
       </div>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold flex items-center gap-2"><Clock3 className="h-4 w-4"/> Recent orders</h3>
+        <h3 className="text-sm font-semibold flex items-center gap-2"><Clock3 className="h-4 w-4"/> {t('recentOrders')}</h3>
         {orders.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">No orders for this shop yet — new orders appear here automatically.</p>
+          <p className="mt-3 text-sm text-slate-500">{t('noOrdersShop')}</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-xs text-slate-500"><tr><th className="px-3 py-2 text-left">Order</th><th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
+              <thead className="text-xs text-slate-500"><tr><th className="px-3 py-2 text-left">{t('tableOrder')}</th><th className="px-3 py-2 text-left">{t('tableStatus')}</th><th className="px-3 py-2 text-left">{t('tableDate')}</th><th className="px-3 py-2 text-right">{t('tableAmount')}</th></tr></thead>
               <tbody className="divide-y divide-slate-200">
                 {orders.map(o => (
                   <tr key={o.id}>
