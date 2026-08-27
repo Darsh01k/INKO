@@ -2,21 +2,22 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { Printer, LogOut, LayoutDashboard, UploadCloud, History, Settings, User, Menu, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { useSettings } from '@/lib/settings'
 import { NotificationsBell } from '@/components/NotificationsBell'
 import { cn } from '@/lib/utils'
 
-const NAV = [
-  { to: '/customer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/upload', label: 'Upload', icon: UploadCloud },
-  { to: '/history', label: 'Orders', icon: History },
-]
-
 export function CustomerShell() {
   const { user, logout } = useAuth()
+  const { t } = useSettings()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   function handleLogout() { logout(); navigate('/login', { replace: true }) }
+  const NAV = [
+    { to: '/customer/dashboard', label: t('navDashboard'), icon: LayoutDashboard },
+    { to: '/upload', label: t('navUpload'), icon: UploadCloud },
+    { to: '/history', label: t('navOrders'), icon: History },
+  ]
   return (
     <div className="flex min-h-screen flex-col bg-[#fcfcfd]">
       <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
@@ -24,7 +25,7 @@ export function CustomerShell() {
           <Link to="/customer/dashboard" className="flex items-center gap-2.5 font-semibold tracking-tight">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl brand-gradient shadow-sm"><Printer className="h-5 w-5 text-white" /></span>
             <span className="hidden text-[17px] font-bold tracking-tight sm:inline">Inko</span>
-            <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium tracking-widest text-slate-500 sm:inline">PRINT OS</span>
+            <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium tracking-widest text-slate-500 sm:inline">{t('appTagCustomer')}</span>
           </Link>
           <nav className="ml-6 hidden items-center gap-1 lg:flex">
             {NAV.map((item) => (
@@ -36,7 +37,7 @@ export function CustomerShell() {
           <div className="flex flex-1 justify-end items-center gap-2">
             <NotificationsBell />
             {!user && (
-              <Link to="/login" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800">Sign in</Link>
+              <Link to="/login" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800">{t('signIn')}</Link>
             )}
             {user && (
               <div className="relative">
@@ -50,10 +51,10 @@ export function CustomerShell() {
                     <div className="absolute right-0 z-40 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
                       <div className="px-3 py-2"><p className="text-sm font-medium">{user.fullName}</p><p className="text-xs text-slate-500">{user.email ?? user.phone ?? '—'}</p></div>
                       <div className="my-1 h-px bg-slate-100" />
-                      <Link to="/customer/profile" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-slate-50"><User className="h-4 w-4 text-slate-500" /> Profile</Link>
-                      <Link to="/customer/settings" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-slate-50"><Settings className="h-4 w-4 text-slate-500" /> Settings</Link>
+                      <Link to="/customer/profile" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-slate-50"><User className="h-4 w-4 text-slate-500" /> {t('profile')}</Link>
+                      <Link to="/customer/settings" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-slate-50"><Settings className="h-4 w-4 text-slate-500" /> {t('settings')}</Link>
                       <div className="my-1 h-px bg-slate-100" />
-                      <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-600 hover:bg-red-50"><LogOut className="h-4 w-4" /> Sign out</button>
+                      <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-600 hover:bg-red-50"><LogOut className="h-4 w-4" /> {t('signOut')}</button>
                     </div>
                   </>
                 )}
@@ -72,15 +73,15 @@ export function CustomerShell() {
                   <item.icon className="h-4 w-4" /> {item.label}
                 </NavLink>
               ))}
-              <Link to="/customer/profile" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"><User className="h-4 w-4" /> Profile</Link>
-              <Link to="/customer/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"><Settings className="h-4 w-4" /> Settings</Link>
-              <button onClick={handleLogout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 text-left"><LogOut className="h-4 w-4" /> Sign out</button>
+              <Link to="/customer/profile" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"><User className="h-4 w-4" /> {t('profile')}</Link>
+              <Link to="/customer/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"><Settings className="h-4 w-4" /> {t('settings')}</Link>
+              <button onClick={handleLogout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 text-left"><LogOut className="h-4 w-4" /> {t('signOut')}</button>
             </nav>
           </div>
         )}
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-12 sm:px-6 lg:px-8"><Outlet /></main>
-      <footer className="border-t border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><p>© {new Date().getFullYear()} Inko — Smart Printing Platform.</p><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> All systems operational</span></div></footer>
+      <footer className="border-t border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><p>{t('footerCustomer').replace('{year}', String(new Date().getFullYear()))}</p><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {t('allSystems')}</span></div></footer>
     </div>
   )
 }

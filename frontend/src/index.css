@@ -41,30 +41,62 @@
   --input: oklch(0.30 0.02 260);
   --ring: oklch(0.62 0.18 260);
   --brand-soft: oklch(0.22 0.05 260);
+  --color-white: oklch(0.21 0.02 260);
+  --color-black: oklch(0.96 0.01 260);
+  --color-slate-50: oklch(0.24 0.02 260);
+  --color-slate-100: oklch(0.27 0.02 260);
+  --color-slate-200: oklch(0.30 0.02 260);
+  --color-slate-300: oklch(0.38 0.02 260);
+  --color-slate-400: oklch(0.62 0.02 260);
+  --color-slate-500: oklch(0.72 0.02 260);
+  --color-slate-600: oklch(0.82 0.02 260);
+  --color-slate-700: oklch(0.88 0.02 260);
+  --color-slate-800: oklch(0.92 0.01 260);
+  --color-slate-900: oklch(0.96 0.01 260);
+  --color-slate-950: oklch(0.99 0.005 260);
 }
 
 .dark body { background: var(--background); color: var(--foreground); }
 .dark .bg-white { background-color: var(--card) !important; color: var(--card-foreground); }
 .dark .bg-slate-50, .dark .bg-slate-50\/60 { background-color: var(--muted) !important; }
-.dark .bg-slate-100 { background-color: var(--muted) !important; color: var(--muted-foreground); }
+.dark .bg-slate-100 { background-color: var(--muted) !important; color: var(--muted-foreground) !important; }
 .dark .bg-slate-900 { background-color: var(--foreground) !important; color: var(--background) !important; }
-.dark .border-slate-200 { border-color: var(--border) !important; }
+.dark .bg-\[\#fcfcfd\] { background-color: var(--background) !important; }
+.dark .bg-white\/80, .dark .bg-white\/70 { background-color: color-mix(in oklch, var(--card) 82%, transparent) !important; }
+.dark .border-slate-200, .dark .border-slate-200\/70 { border-color: var(--border) !important; }
 .dark .divide-slate-200 > * + * { border-color: var(--border) !important; }
-.dark .text-slate-900 { color: var(--foreground) !important; }
-.dark .text-slate-800, .dark .text-slate-700 { color: var(--foreground) !important; }
+.dark .text-slate-900, .dark .text-slate-800, .dark .text-slate-700 { color: var(--foreground) !important; }
 .dark .text-slate-600, .dark .text-slate-500 { color: var(--muted-foreground) !important; }
 .dark .text-slate-400 { color: oklch(0.62 0.02 260) !important; }
 .dark .text-slate-300 { color: oklch(0.55 0.02 260) !important; }
+.dark .text-white { color: var(--background) !important; }
+.dark .bg-slate-900 .text-white, .dark .bg-slate-900.text-white { color: var(--background) !important; }
 .dark .placeholder\:text-slate-400::placeholder { color: oklch(0.62 0.02 260) !important; }
 .dark .hover\:bg-slate-50:hover { background-color: var(--muted) !important; }
 .dark .hover\:bg-slate-100:hover { background-color: oklch(0.27 0.02 260) !important; }
-.dark header { background-color: var(--card) !important; border-color: var(--border) !important; }
+.dark .hover\:text-slate-900:hover { color: var(--foreground) !important; }
+.dark header { background-color: color-mix(in oklch, var(--card) 92%, transparent) !important; border-color: var(--border) !important; }
+.dark footer { background-color: var(--card) !important; border-color: var(--border) !important; }
+.dark .shadow-sm, .dark .shadow, .dark .shadow-lg, .dark .shadow-xl { --tw-shadow-color: rgb(0 0 0 / 0.45); }
+.dark .bg-indigo-50, .dark .bg-indigo-50\/70 { background-color: oklch(0.26 0.07 260 / 0.65) !important; }
+.dark .bg-emerald-50 { background-color: oklch(0.28 0.06 160 / 0.5) !important; }
+.dark .bg-amber-50 { background-color: oklch(0.30 0.07 80 / 0.45) !important; }
+.dark .bg-red-50 { background-color: oklch(0.26 0.06 25 / 0.5) !important; }
+.dark .bg-sky-50 { background-color: oklch(0.26 0.06 230 / 0.5) !important; }
+.dark .text-indigo-700, .dark .text-indigo-600 { color: oklch(0.78 0.12 260) !important; }
+.dark .text-emerald-700 { color: oklch(0.80 0.10 160) !important; }
+.dark .text-amber-700 { color: oklch(0.80 0.10 80) !important; }
+.dark .text-red-600, .dark .text-red-700, .dark .text-red-800 { color: oklch(0.78 0.12 25) !important; }
+.dark .border-indigo-200, .dark .border-emerald-200, .dark .border-amber-200, .dark .border-red-200, .dark .border-sky-200 { border-color: var(--border) !important; }
 .dark .mesh-gradient {
   background:
     radial-gradient(1200px 600px at 10% -10%, oklch(0.25 0.06 260 / 0.4), transparent 60%),
     radial-gradient(900px 500px at 90% 0%, oklch(0.22 0.07 280 / 0.3), transparent 60%),
     linear-gradient(180deg, var(--background) 0%, oklch(0.19 0.015 260) 100%);
 }
+.dark input, .dark textarea, .dark select { background-color: var(--card) !important; color: var(--foreground) !important; border-color: var(--border) !important; }
+.dark ::-webkit-scrollbar-thumb { background: oklch(0.32 0.02 260) !important; }
+.dark ::-webkit-scrollbar-thumb:hover { background: oklch(0.40 0.02 260) !important; }
 
 * { border-color: var(--border); }
 html { scrollbar-gutter: stable; scroll-behavior: smooth; }
