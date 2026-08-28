@@ -23,6 +23,7 @@ export const tokens = {
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  timeout: 15000,
 })
 
 api.interceptors.request.use((config) => {
@@ -81,6 +82,7 @@ async function refreshAccessToken(): Promise<string> {
   const response = await axios.post(
     `${api.defaults.baseURL}/auth/refresh`,
     { refreshToken },
+    { timeout: 10000 },
   )
   const { accessToken, refreshToken: nextRefresh } = response.data
   tokens.set(accessToken, nextRefresh)
@@ -100,7 +102,7 @@ api.interceptors.response.use(
     if (status === 401 && original && !original._retry && !isAuthCall && tokens.refresh) {
       original._retry = true
       try {
-        refreshPromise = refreshPromise ?? refreshAccessToken()
+        if (!refreshPromise) refreshPromise = refreshAccessToken()
         const token = await refreshPromise
         refreshPromise = null
         original.headers = { ...original.headers, Authorization: `Bearer ${token}` }
@@ -108,7 +110,9 @@ api.interceptors.response.use(
       } catch (refreshError) {
         refreshPromise = null
         tokens.clear()
-        window.location.assign('/login')
+        const area = localStorage.getItem('inko.lastLoginRole')
+        const loginPath = area === 'shop' ? '/shop/login' : area === 'admin' ? '/admin/login' : '/login'
+        if (window.location.pathname !== loginPath) window.location.assign(loginPath)
         return Promise.reject(refreshError)
       }
     }

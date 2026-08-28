@@ -10,4 +10,5 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
     List<Order> findByShopIdOrderByCreatedAtDesc(UUID shopId);
     List<Order> findByStatus(String status);
+    long countByShopId(UUID shopId);
 }

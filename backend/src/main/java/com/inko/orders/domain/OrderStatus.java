@@ -12,7 +12,7 @@ public enum OrderStatus {
             case PAYMENT_PENDING -> Set.of(PAID, COD_SELECTED, CANCELLED, FAILED).contains(next);
             case PAID, COD_SELECTED -> Set.of(TOKEN_GENERATED, CANCELLATION_REQUESTED, CANCELLED).contains(next);
             case TOKEN_GENERATED -> Set.of(QUEUED, CANCELLED).contains(next);
-            case QUEUED -> Set.of(ACCEPTED, CANCELLED, CANCELLATION_REQUESTED).contains(next);
+            case QUEUED -> Set.of(ACCEPTED, PRINTING, COMPLETED, CANCELLED, CANCELLATION_REQUESTED).contains(next);
             case ACCEPTED -> Set.of(PRINTING, CANCELLED, FAILED).contains(next);
             case PRINTING -> Set.of(COMPLETED, FAILED, CANCELLED).contains(next);
             case FAILED -> Set.of(RETRY_PENDING, CANCELLED).contains(next);

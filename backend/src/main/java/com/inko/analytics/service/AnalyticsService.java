@@ -31,19 +31,33 @@ public class AnalyticsService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String,Object> overview() {
-        long totalOrders = orders.count();
-        long totalShops = shops.count();
-        BigDecimal revenue = orders.findAll().stream().map(o -> o.getFinalAmount() == null ? BigDecimal.ZERO : o.getFinalAmount()).reduce(BigDecimal.ZERO, BigDecimal::add);
-        long activeUsers = users.countByStatus(UserStatus.ACTIVE);
-        long totalUsers = users.count();
+    public Map<String,Object> overview() { return overview(null); }
 
-        Object[] today = (Object[]) em.createNativeQuery("""
-                SELECT COALESCE(COUNT(*),0), COALESCE(SUM(final_amount),0)
-                FROM orders WHERE created_at::date = CURRENT_DATE
-                """).getSingleResult();
+    @Transactional(readOnly = true)
+    public Map<String,Object> overview(UUID shopId) {
+        long totalOrders;
+        long totalShops;
+        BigDecimal revenue;
+        Object[] today;
+        if (shopId != null) {
+            totalOrders = orders.countByShopId(shopId);
+            totalShops = shops.existsById(shopId) ? 1 : 0;
+            revenue = ((Number) em.createNativeQuery("SELECT COALESCE(SUM(final_amount),0) FROM orders WHERE shop_id=:sid").setParameter("sid", shopId).getSingleResult()).doubleValue() == 0 ? BigDecimal.ZERO : BigDecimal.valueOf(((Number) em.createNativeQuery("SELECT COALESCE(SUM(final_amount),0) FROM orders WHERE shop_id=:sid").setParameter("sid", shopId).getSingleResult()).doubleValue());
+            today = (Object[]) em.createNativeQuery("SELECT COALESCE(COUNT(*),0), COALESCE(SUM(final_amount),0) FROM orders WHERE created_at::date = CURRENT_DATE AND shop_id=:sid").setParameter("sid", shopId).getSingleResult();
+        } else {
+            totalOrders = orders.count();
+            totalShops = shops.count();
+            revenue = orders.findAll().stream().map(o -> o.getFinalAmount() == null ? BigDecimal.ZERO : o.getFinalAmount()).reduce(BigDecimal.ZERO, BigDecimal::add);
+            today = (Object[]) em.createNativeQuery("""
+                    SELECT COALESCE(COUNT(*),0), COALESCE(SUM(final_amount),0)
+                    FROM orders WHERE created_at::date = CURRENT_DATE
+                    """).getSingleResult();
+        }
         Number todayOrders = (Number) today[0];
         Number todayRevenue = (Number) today[1];
+
+        long activeUsers = users.countByStatus(UserStatus.ACTIVE);
+        long totalUsers = users.count();
 
         Map<String,Object> out = new LinkedHashMap<>();
         out.put("totalOrders", totalOrders);
@@ -87,7 +101,6 @@ public class AnalyticsService {
         return out;
     }
 
-    /** Daily orders + revenue series for the last N days, optionally scoped to a shop. */
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
     public List<Map<String,Object>> dailySeries(int days, UUID shopId) {
@@ -101,13 +114,26 @@ public class AnalyticsService {
                 WHERE created_at >= CURRENT_DATE - INTERVAL '%d days'%s
                 GROUP BY day ORDER BY day
                 """.formatted(safeDays, filter)).getResultList();
-        List<Map<String,Object>> out = new ArrayList<>();
+        Map<String, Map<String,Object>> byDate = new LinkedHashMap<>();
         for (Object[] r : rows) {
             Map<String,Object> m = new LinkedHashMap<>();
             m.put("date", String.valueOf(r[0]));
             m.put("orders", ((Number) r[1]).longValue());
             m.put("revenue", BigDecimal.valueOf(((Number) r[2]).doubleValue()));
-            out.add(m);
+            byDate.put(String.valueOf(r[0]), m);
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        List<Map<String,Object>> out = new ArrayList<>();
+        for (int i = safeDays - 1; i >= 0; i--) {
+            String d = today.minusDays(i).toString();
+            if (byDate.containsKey(d)) out.add(byDate.get(d));
+            else {
+                Map<String,Object> m = new LinkedHashMap<>();
+                m.put("date", d);
+                m.put("orders", 0L);
+                m.put("revenue", BigDecimal.ZERO);
+                out.add(m);
+            }
         }
         return out;
     }

@@ -35,12 +35,15 @@ export default function ShopDashboard() {
   const [period, setPeriod] = useState<'hour'|'day'|'week'|'year'>('day')
 
   useEffect(() => {
-    api.get('/analytics/overview').then(r => setStats(r.data)).catch(e => setErr(apiErrorMessage(e)))
     api.get('/shops/mine').then(r => {
       setShops(r.data ?? [])
       if (r.data?.[0]) setShopId((prev: string) => prev || r.data[0].id)
     }).catch(() => {})
   }, [])
+  useEffect(() => {
+    if (!shopId) return
+    api.get('/analytics/overview', { params: { shopId } }).then(r => setStats(r.data)).catch(e => setErr(apiErrorMessage(e)))
+  }, [shopId])
 
   useEffect(() => {
     if (!shopId) return
@@ -55,7 +58,7 @@ export default function ShopDashboard() {
     if (period==='hour') params.days = 1
     else if (period==='day') params.days = 7
     else if (period==='week') params.days = 30
-    else if (period==='year') params.days = 365
+    else if (period==='year') params.days = 30
     api.get('/analytics/series', { params }).then(s => {
       let data:any[] = s.data ?? []
       if (period==='hour'){
@@ -67,10 +70,9 @@ export default function ShopDashboard() {
         const grouped = Array.from({length: 12}, (_,i)=>({ day: months[i], total: 0 }))
         data.forEach((p:any, idx:number)=>{ grouped[idx%12].total += Number(p.total ?? p.revenue ?? 0) })
         data = grouped
-      } else if (!data.length){
-        data = []
       }
-      setRevenue(data)
+      const normalized = data.map((p:any)=>({ date: p.date ?? p.day, revenue: p.revenue ?? p.total ?? 0 }))
+      setRevenue(normalized)
     }).catch(() => setRevenue([]))
   }
 
@@ -104,9 +106,9 @@ export default function ShopDashboard() {
       {err && <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</Card>}
 
       <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <KPI icon={Users} label={t('platformOrders')} value={stats ? String(stats.totalOrders ?? stats.todayOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? t('todaySuffix').replace('{n}', String(stats.todayOrders)) : undefined} />
-        <KPI icon={IndianRupee} label={t('platformRevenue')} value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub={t('netOfRefunds')} />
-        <KPI icon={Store} label={t('shopsLabel')} value={stats ? String(stats.totalShops ?? shops.length) : String(shops.length)} sub={t('openNow').replace('{n}', String(shops.filter(s => s.status === 'OPEN').length))} />
+        <KPI icon={Users} label="Shop Orders" value={stats ? String(stats.totalOrders ?? 0) : '…'} sub={stats?.todayOrders != null ? t('todaySuffix').replace('{n}', String(stats.todayOrders)) : undefined} />
+        <KPI icon={IndianRupee} label="Shop Revenue" value={stats ? `₹${stats.totalRevenue ?? 0}` : '…'} sub={t('netOfRefunds')} />
+        <KPI icon={Store} label={t('shopsLabel')} value={stats ? String(stats.totalShops ?? 1) : String(shops.length)} sub={t('openNow').replace('{n}', String(shops.filter(s => s.status === 'OPEN').length))} />
         <KPI icon={Timer} label={t('inQueue')} value={String(queueCount)} sub={queueCount > 0 ? t('shownBelow').replace('{n}', String(queuePreview.length)) : t('topTokensLive')} />
       </div>
 
@@ -130,16 +132,30 @@ export default function ShopDashboard() {
           <p className="mt-1 text-xs text-slate-500">Revenue per {period} • auto-refresh</p>
           {revenue === null ? (
             <div className="mt-6 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-6 w-full" />)}</div>
+          ) : revenue.every(p => Number((p as any).revenue ?? 0) === 0) && revenue.length>0 ? (
+            <div className="mt-6 flex items-end gap-2 h-36">
+              {revenue.map((p, i) => {
+                const v = Number(p.total ?? p.revenue ?? 0)
+                const label = p.date ? (p.date.length>10 ? p.date : p.date.slice(5)) : (p.day ?? String(i+1))
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-2" title={`₹${v}`}>
+                    <div className="w-full rounded-xl bg-slate-200" style={{ height: '8%' }} />
+                    <span className="text-[11px] text-slate-500">{label}</span>
+                  </div>
+                )
+              })}
+            </div>
           ) : revenue.length === 0 ? (
             <EmptyState icon={IndianRupee} title={t('noRevenueYet')} description={t('noRevenueDesc')} />
           ) : (
             <div className="mt-6 flex items-end gap-2 h-36">
               {revenue.map((p, i) => {
                 const v = Number(p.total ?? p.revenue ?? 0)
+                const label = p.date ? p.date.slice(5) : (p.day ?? String(i+1))
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-2" title={`₹${v}`}>
-                    <div className="w-full rounded-xl bg-gradient-to-t from-indigo-600 to-indigo-400" style={{ height: `${Math.max(4, (v / maxRev) * 100)}%` }} />
-                    <span className="text-[11px] text-slate-500">{(p.date ?? p.day ?? '').slice(5) || i + 1}</span>
+                    <div className="w-full rounded-xl bg-gradient-to-t from-indigo-600 to-indigo-400" style={{ height: `${Math.max(6, (v / maxRev) * 100)}%` }} />
+                    <span className="text-[11px] text-slate-500">{label}</span>
                   </div>
                 )
               })}

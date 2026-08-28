@@ -55,23 +55,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    const failsafe = setTimeout(() => { if (!cancelled) setIsLoading(false) }, 8000)
     async function bootstrap() {
       if (!tokens.access || !tokens.refresh) {
         setIsLoading(false)
+        clearTimeout(failsafe)
         return
       }
       try {
-        const { data } = await api.get<CurrentUser>('/users/me')
+        const { data } = await api.get<CurrentUser>('/users/me', { timeout: 10000 })
         if (!cancelled) setUser(data)
-      } catch {
-        tokens.clear()
+      } catch (e: any) {
+        const status = e?.response?.status
+        if (status === 401 || status === 403) tokens.clear()
       } finally {
+        clearTimeout(failsafe)
         if (!cancelled) setIsLoading(false)
       }
     }
     void bootstrap()
     return () => {
       cancelled = true
+      clearTimeout(failsafe)
     }
   }, [])
 

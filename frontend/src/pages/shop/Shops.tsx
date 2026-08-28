@@ -31,9 +31,9 @@ export default function ShopManage() {
   const [staged, setStaged] = useState<any[] | null>(null)
   const [resBusy, setResBusy] = useState(false)
 
-  function load() {
+  async function load() {
     setErr('')
-    api.get('/shops/mine').then(r=>setShops(r.data ?? [])).catch(e=>setErr(apiErrorMessage(e)))
+    try { const r = await api.get('/shops/mine'); setShops(r.data ?? []) } catch(e:any){ setErr(apiErrorMessage(e)) }
   }
   function loadInventory(shopId: string){
     setInventory(null); setStaged(null)
@@ -73,19 +73,36 @@ export default function ShopManage() {
     setForm({ name:'', addressLine1:'', addressLine2:'', city:'', state:'', pincode:'', phone:'', latitude:'', longitude:'' })
     setCcForm('+91'); setShowMap(false); setCreateOpen(true); setErr('')
   }
-  function openEdit(s: Shop) {
-    setEditing(s)
-    const raw = s.phone ?? ''
-    let cc = '+91', local = raw
-    const m = raw.match(/^(\+\d{1,4})(.*)$/)
-    if (m){ cc = m[1]; local = m[2].trim() }
-    setCcEdit(cc)
-    setEditForm({
-      name: s.name ?? '', addressLine1: s.addressLine1 ?? '', addressLine2: s.addressLine2 ?? '',
-      city: s.city ?? '', state: s.state ?? '', pincode: s.pincode ?? '', phone: local.replace(/[^0-9]/g,''),
-      latitude: s.latitude != null ? String(s.latitude) : '', longitude: s.longitude != null ? String(s.longitude) : ''
-    })
-    setShowEditMap(false); setErr('')
+  async function openEdit(s: Shop) {
+    setErr('')
+    setShowEditMap(false)
+    try {
+      const r = await api.get(`/shops/${s.id}`)
+      const fresh: Shop = r.data ?? s
+      setEditing(fresh)
+      const raw = fresh.phone ?? ''
+      let cc = '+91', local = raw
+      const m = raw.match(/^(\+\d{1,4})(.*)$/)
+      if (m){ cc = m[1]; local = m[2].trim() }
+      setCcEdit(cc)
+      setEditForm({
+        name: fresh.name ?? '', addressLine1: fresh.addressLine1 ?? '', addressLine2: fresh.addressLine2 ?? '',
+        city: fresh.city ?? '', state: fresh.state ?? '', pincode: fresh.pincode ?? '', phone: local.replace(/[^0-9]/g,''),
+        latitude: fresh.latitude != null ? String(fresh.latitude) : '', longitude: fresh.longitude != null ? String(fresh.longitude) : ''
+      })
+    } catch {
+      setEditing(s)
+      const raw = s.phone ?? ''
+      let cc = '+91', local = raw
+      const m = raw.match(/^(\+\d{1,4})(.*)$/)
+      if (m){ cc = m[1]; local = m[2].trim() }
+      setCcEdit(cc)
+      setEditForm({
+        name: s.name ?? '', addressLine1: s.addressLine1 ?? '', addressLine2: s.addressLine2 ?? '',
+        city: s.city ?? '', state: s.state ?? '', pincode: s.pincode ?? '', phone: local.replace(/[^0-9]/g,''),
+        latitude: s.latitude != null ? String(s.latitude) : '', longitude: s.longitude != null ? String(s.longitude) : ''
+      })
+    }
   }
 
   async function doCreate() {
@@ -116,16 +133,15 @@ export default function ShopManage() {
       const payload: any = { name: editForm.name.trim(), addressLine1: editForm.addressLine1.trim() || null, addressLine2: editForm.addressLine2.trim() || null, city: editForm.city.trim() || null, state: editForm.state.trim() || null, pincode: editForm.pincode.trim() || null, phone: cleanPhone ? fullPhone(ccEdit, cleanPhone) : null }
       payload.latitude = editForm.latitude ? parseFloat(editForm.latitude) : null
       payload.longitude = editForm.longitude ? parseFloat(editForm.longitude) : null
-      try { await api.patch(`/shops/${editing.id}`, payload) } catch (e:any) {
-        if (e?.response?.status === 405) {
-          try { await api.put(`/shops/${editing.id}`, payload) } catch (e2:any) {
-            if (e2?.response?.status === 405) await api.post(`/shops/${editing.id}`, payload)
-            else throw e2
-          }
-        } else throw e
+      await api.patch(`/shops/${editing.id}`, payload)
+      setEditing(null)
+      await load()
+    } catch(e:any){
+      if (e?.response?.status === 405) {
+        try { await api.put(`/shops/${editing.id}`, { name: editForm.name.trim(), addressLine1: editForm.addressLine1.trim() || null, addressLine2: editForm.addressLine2.trim() || null, city: editForm.city.trim() || null, state: editForm.state.trim() || null, pincode: editForm.pincode.trim() || null, phone: cleanPhone ? fullPhone(ccEdit, cleanPhone) : null, latitude: editForm.latitude ? parseFloat(editForm.latitude) : null, longitude: editForm.longitude ? parseFloat(editForm.longitude) : null }) ; setEditing(null); await load(); return } catch(e2:any){ setErr(apiErrorMessage(e2)); return }
       }
-      setEditing(null); load()
-    } catch(e:any){ setErr(apiErrorMessage(e)) } finally { setBusy(false) }
+      setErr(apiErrorMessage(e))
+    } finally { setBusy(false) }
   }
 
   async function doDelete() {

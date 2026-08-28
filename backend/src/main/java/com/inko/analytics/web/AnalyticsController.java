@@ -19,7 +19,7 @@ public class AnalyticsController {
     public AnalyticsController(AnalyticsService svc) { this.svc = svc; }
 
     @GetMapping("/overview")
-    public Map<String,Object> overview() { return svc.overview(); }
+    public Map<String,Object> overview(@RequestParam(required = false) UUID shopId) { return svc.overview(shopId); }
 
     @GetMapping("/revenue")
     public Map<String,Object> revenue(@RequestParam(required = false) UUID shopId) {
