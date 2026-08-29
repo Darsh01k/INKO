@@ -1,4 +1,4 @@
-# Use Cases — Guest via QR (Unauthenticated) v2.0 Exhaustive
+# Use Cases — Guest via QR (Unauthenticated) v6.0 Redo Ultra Detailed
 
 **Actor:** Guest (no account, scans QR poster) — ephemeral CUSTOMER after `POST /api/auth/guest` idempotent guard `guestTried+tokens.access`
 **Source:** `QrScan.tsx` `ShopPrint.tsx` `Upload.tsx` `Configure.tsx` `QrController` `AuthService.createGuestSession` `SecurityConfig` permitAll, `PrintCalc`, `FUNCTIONALITY.md §2`
@@ -111,5 +111,8 @@
 ---
 
 *All guest use cases verified code-static; live PG BLOCKED re-verify after Docker fix.*
+
+
+
 
 

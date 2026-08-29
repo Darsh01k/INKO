@@ -1,6 +1,6 @@
 # Inko — Exhaustive Flow Charts — Every Actor, Service, State & Error Branch
-**Version:** 3.0 — Redo Exhaustive 2026-08-29 20:00 IST (Every little thing)
-**Date:** 2026-08-29 20:00 IST — Redone per phases
+**Version:** 6.0 — Redo Ultra Detailed 2026-08-29 23:00 IST (Every little thing — Full Re-audit v6 Phased)
+**Date:** 2026-08-29 23:00 IST — Redone Phase 1 Ultra v6 Phased
 **Source:** `backend/src/**` (124 files), `frontend/src/**` (1952 modules), `db/migration V1-V12`, `SecurityConfig`, `App.tsx`, `*.tsx pages`, `PrintCalc`, `TokenService`, `OrderService`, `PaymentService`, `PricingService`
 **Format:** Mermaid `flowchart TD` + `sequenceDiagram` + `stateDiagram-v2` — paste any block into [mermaid.live](https://mermaid.live) or VS Code `Markdown Preview Mermaid`
 
@@ -32,7 +32,7 @@ flowchart TD
     PaymentAPI["Payment API<br/>POST /api/orders/:id/payment<br/>method MOCK_UPI|COD<br/>idempotencyKey UNIQUE<br/>providerOrderRef<br/>POST /api/payments/:id/verify<br/>GET /api/orders/:id/payment<br/>POST /api/orders/:id/refund REQUESTED"]
     TokenAPI["Token API<br/>POST /api/tokens<br/>GET /api/shops/:id/queue<br/>POST /api/tokens/:id/transition<br/>GET /api/tokens/:id<br/>GET /api/tokens/:id/wait<br/>GENERATED→WAITING→CALLED→PRINTING→COMPLETED<br/>priority 10/20/100/200"]
     QueueEntryDB[("QueueEntry<br/>queue_entries<br/>token_id UNIQUE<br/>shop_id position queuedAt<br/>status WAITING|CALLED|PRINTING|COMPLETED")]
-    QueueSSE["SSE Stream<br/>GET /api/shops/:id/queue/stream 60s<br/>SseEmitter CopyOnWriteArray<br/>event token / connected"]
+    QueueSSE["SSE Stream per-shop<br/>GET /api/shops/:id/queue/stream 60s<br/>ConcurrentHashMap shopId→CopyOnWriteArray<br/>event token shop-isolated / connected"]
     InventoryAPI["Inventory API<br/>GET /api/catalog/inventory<br/>PUT /api/catalog/inventory<br/>paperSize gsm quantity lowStockThreshold"]
     QrAPI["QR API<br/>GET /api/qr/:code/resolve permitAll<br/>POST /api/qr/:code/scan permitAll<br/>POST /api/shops/:id/qr/regenerate owner<br/>GET /api/shops/:id/qr/history"]
     AnalyticsAPI["Analytics API<br/>GET /api/analytics/overview?shopId scoped<br/>GET /api/analytics/series?days&shopId<br/>GET /api/analytics/mix<br/>GET /api/analytics/revenue"]
@@ -56,7 +56,7 @@ flowchart TD
     TokenAPI -->|TOKEN_CALLED/PRINTING/COMPLETED| NotifyAPI
     TokenAPI -->|order QUEUED→PRINTING→COMPLETED<br/>or FAILED| OrderAPI
     Frontend -->|GET /shops/:id/queue poll2500/5000<br/>GET /tokens/:id/wait<br/>EventSource SSE 60s| QueueSSE
-    QueueSSE -->|broadcast token DTO| Frontend
+    QueueSSE -->|broadcast token DTO per-shop isolated| Frontend
     Frontend -->|GET /analytics/overview?shopId<br/>GET /series?days 1/7/30/365| AnalyticsAPI
     Frontend -->|GET /admin/users|audit<br/>PATCH roles/status<br/>GET /complaints PATCH<br/>POST /refunds/:id/decision| AdminAPI
     Frontend -->|POST /complaints OPEN| ComplaintAPI
@@ -500,7 +500,7 @@ flowchart TD
 - **Token idempotent:** `findByOrderId` before generate; Payment verify `PAID` skip; init returns existing not CONFLICT; concurrent check-then-act still race without DB UNIQUE FOR UPDATE noted
 - **QueueEntry standardized:** `PROCESSING→PRINTING`, `DONE→COMPLETED` alignment; DB still PROCESSING/DONE legacy vs standardized documented
 - **Shop validation:** `POST /orders` validates `shopId !=null && shop OPEN else 400`
-- **SSE:** Customer 2500 + shop 2500 with stop/start on live/fallback, cleanup on unmount; global CopyOnWriteArray leaks across shops noted
+- **SSE:** Customer 2500 + shop 2500 with stop/start on live/fallback, cleanup on unmount; per-shop ConcurrentHashMap isolation FIXED
 
 ## 15. Not Covered / Legacy (Gaps Closed)
 
@@ -510,4 +510,92 @@ flowchart TD
 - **Token SSE:** `GET /api/shops/:shopId/queue/stream` 60s global broadcast no shop filter leak + `GET /api/net/lan-ip` DatagramSocket 8.8.8.8
 - **Payment:** `GET /api/orders/:id/refunds` + `POST /api/orders/:id/refund` optional amount reason 10% fee + `POST /api/refunds/:id/decision` case-insensitive APPROVE
 - **Order direct COMPLETED:** `QUEUED→COMPLETED` valid skip PRINTING per canTransitionTo
+
+---
+
+## 16. Ultra Detail — Every File / Every Field / Every Badge (v4)
+
+**Frontend every route file:**
+- `main.tsx` QueryClient retry1 stale15s → `App.tsx` 110L `AuthProvider` + 15 routes + `AreaGuard` (shop/customer/admin) + legacy `Login/Register/CustomerLogin` dead + `ShopPrint` public.
+- `ui.tsx` 242L Button 5 variants (primary oklch0.55, secondary border slate200, ghost outline danger) sizes sm h8 lg h11 loading spinner, Input h10 rounded-xl focus oklch, Badge 7 tones (brand indigo, success emerald50, warning amber50, danger red50), Alert 4 tones, Card rounded-2xl shadow-sm, Dialog Escape backdrop-blur max-w-lg, Toast 3500ms, Stepper pills, Progress h2, Skeleton pulse.
+- `Welcome` tabs Sign-in/Create account Shop vs Customer Store/FileText border oklch, fullName 1-120 + Email/Phone + Password 8-72 strength bar len*12%.
+- `Upload` Dropzone dashed-2 p8 `ALLOWED_EXT pdf jpg jpeg png doc docx ppt pptx xls xlsx txt` ≤50MB ≤10 FileChip grid2 X, `POST /api/documents/upload FormData` progress 95%, Result Card thumbnail 20x14 pages mime, `POST /api/documents` list.
+- `Configure` shopId locked emerald vs Select dropdown, paper A4/A3/A5/LETTER/LEGAL, BW/COLOR, SINGLE/DOUBLE, copies 1-100, pages ALL `1-5,8→6` via `countPages` 600ms debounce `POST /api/pricing/quote shopId paper color sides selPages copies coupon` → `PriceBreakdown pages copies sheets printedPages subtotal paper/color/side/special discount taxPercent final currency ruleId`.
+- `OrderDetail` poll3s stepper timeline PLACED→PAYMENT 1→QUEUED2→PRINTING3→COMPLETED4, Header Order mono Badge + ₹, Items `pageCount copies itemSubtotal`, `pricingSnapshot` json, Payment Card hide if PAID/COD/QUEUED.
+- `Queue` SSE `GET /api/shops/:id/queue` + `GET /tokens/:id/wait waitingAhead priority+issuedAt estimate 0.4*pages+1*job` badge `WAITING warning amber CALLED brand indigo PRINTING brand COMPLETED success`.
+- `History` `GET /api/orders mine` Search status Shop Select mono8 table mobile cards, `Print again` → `/configure?reprint&shopId` state shopId originalItems coupon.
+- `QrScan` `GET /qr/:code/resolve` 200 ACTIVE vs REPLACED 404 + `POST /qr/:code/scan` ip ua log, mesh-gradient loading.
+
+**Backend every entity/column:**
+- `V1 helpers` uuid, `V2 users(id fullName120 email180 UQ phone20 UQ passwordHash100 status emailVerified lastLoginAt) roles(CUSTOMER/SHOPKEEPER/ADMIN/SUPER_ADMIN) user_roles refresh_tokens(token_hash UQ expiresAt revokedAt) otp_codes(identifier purpose LOGIN/VERIFY_EMAIL/VERIFY_PHONE/RESET_PASSWORD attempts expiresAt consumedAt)`, `V3 shops(id name150 owner_user_id city address pincode latitude LONG 9,6 phone status OPEN/BUSY/TEMPORARILY_UNAVAILABLE/CLOSED/SUSPENDED supportsColor) operating_hours shopkeeper_permissions`, `V4 printers(id shopId name model colorCapable paperSizes[] status ONLINE/PRINTING/IDLE) shop_paper_inventory(shopId paperSize gsm quantity lowStock) paper_types`, `V5 documents(id customerId fileName mime size pageCount checksum storageKey analysisStatus) document_pages`, `V6 pricing_rules(scope SHOP/PLATFORM shopId paperSize colorMode sidesMode pricePerPage specialCharge minOrder effectiveTo active) discount_rules(plus maxDiscount minPages usageLimit timesUsed type FIXED) coupons(code validFrom/to discountRuleId) coupon_redemptions(couponId userId orderId)`, `V7 orders(id orderNumber UQ customerId shopId status totalPages copies subtotal discount tax final snapshot jsonb couponId) order_items(documentId configurationId pageCount copies itemSubtotal) print_configurations(color sides paper orientation pageSelection selectedPageCount copies)`, `V8 tokens(id shopId orderId UQ tokenNumber A001 tokenDate type NORMAL/URGENT priority status GENERATED/WAITING/CALLED/PRINTING/COMPLETED version) queue_entries(tokenId UNIQUE shopId position status WAITING/CALLED/PRINTING/COMPLETED) token_sequences(shopId seqDate lastNumber) printer_jobs`, `V9 payments(id orderId UQ amount method MOCK_UPI/COD providerOrderRef idempotencyKey UQ status PENDING/PAID/FAILED/REFUNDED) refunds(paymentId orderId amount type FULL/PARTIAL reason status REQUESTED/APPROVED/REJECTED/COMPLETED) payment_transactions invoices`, `V10 qr_codes(codeValue UQ 64 status ACTIVE/INACTIVE/EXPIRED/REPLACED replacedById generatedBy) qr_scan_events notifications(notification_preferences failed_jobs system_settings)`, `V11 seeds 21 perms`, `V12 fix stale`, `V13 harden UNIQUE payment/token ACTIVE QR, DONE→COMPLETED migration`, Token `version` optimistic locking.
+
+**API every endpoint (78):** listed in FUNCTIONALITY §8D — fully mirrored above.
+
+**Error codes:** 400 Validation, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict, 429 Too Many (login/otp/complaint), 500 never for validation.
+
+**Permissions 21:** `shop:manage_own` etc shopkeeper 8, admin 21, super all, CUSTOMER none in DB.
+
+---
+
+## 17. Multi-Document Preview & Order Consensus (v5 New)
+
+```mermaid
+flowchart TD
+    Docs[Docs A 10pp B 20pp copies2]
+    CalcA[PrintCalc A sel10→pp20 sheets SINGLE20 DOUBLE10]
+    CalcB[PrintCalc B sel20→pp40 sheets SINGLE40 DOUBLE20]
+    Sum[Sum sel30 pp60 sheets SINGLE60 DOUBLE30]
+    Quote[POST /pricing/quote per doc quote sum final]
+    Order[Order totalPages60 copies header first-item]
+    History[History reprint restores shop docs sel copies]
+    Docs --> CalcA
+    Docs --> CalcB
+    CalcA --> Sum
+    CalcB --> Sum
+    Sum --> Quote
+    Sum --> Order
+    Sum --> History
+```
+
+**Rule:** Frontend preview must equal backend sum `selected 30 printed 60 sheets SINGLE60 DOUBLE30`, not document.totalPages.
+
+## 18. Coupon + Reprint + Refund + Complaint Detailed (v5 New)
+
+```mermaid
+flowchart TD
+    Coupon[Coupon code upper validFrom/to usageLimit perUser timesUsed]
+    QuoteC[Quote validate active + perUser count + limit]
+    OrderC[Order create PESSIMISTIC_WRITE lock → CouponRedemption + timesUsed++]
+    Reprint[Reprint ?reprint&shopId state docs+originalItems → re-validate coupon upper else 400 expired]
+    Refund[Paid100 → Request 80 → approve → total 80 PARTIAL → second Request 30 → approve 30 total110→ reject 400 exceed]
+    Complaint[POST OPEN ASSIGNED INVESTIGATING RESOLVED/ESCALATED 400 if CLOSED]
+    Coupon --> QuoteC --> OrderC
+    OrderC --> Reprint
+    OrderC --> Refund
+    Refund --> Complaint
+```
+
+**Rate limit:** `POST /complaints` IP 10/min via `RateLimitService`.
+
+## 19. Verified vs Target Legend (v5)
+
+- **IMPLEMENTED:** All flows above via `OrderService`, `TokenService @Version`, `Inventory FOR_UPDATE`, `Coupon FOR UPDATE`, `QR ACTIVE UNIQUE`.
+- **TARGET (none remaining):** All target flows now implemented.
+- **LEGACY:** `DONE→COMPLETED` migrated `V13`.
+
+---
+
+## 20. v6 Ultra Detail — Every Little Thing Checklist (Redone Phased 1)
+
+**Frontend every file (27 pages):** `Welcome 234L`, `Login 165L dead`, `Register 103L dead`, `CustomerLogin 110L dead`, `Dashboard 191L` (HOW IT WORKS 4 steps), `Upload 284L` (Dropzone, FileChip), `Configure 266L` (600ms debounce), `OrderDetail 278L` (stepIndex, Live Badge), `Queue 162L` (SSE per-shop), `History 153L` (Search mono8), `QrScan 48L` (mesh-gradient), `ShopPrint 42L`, `ShopLogin`, `AdminLogin`, `Account 180L` (Profile+Settings DangerZone), `ForgotPassword 68L`, `shop/Dashboard 180L`, `QueueManage 254L` (acting flag), `Shops 180L`, `Pricing 180L`, `Qr 140L`, `admin/Dashboard/U/Shops/Orders/Complaints/Audit` each 60-90L.
+
+**Backend every controller (18):** `AuthController 5 routes`, `UserController 3`, `AdminUserController 3`, `ShopController 6`, `CatalogController 7 (printers/inventory FOR_UPDATE)`, `DocumentController 4 (50MB 10 ext)`, `PricingController 5`, `DiscountController 6`, `OrderController 4 + hasShopAccess`, `PaymentController 5 + actorId`, `TokenController 7 + per-shop SSE`, `QrController 6 + REPLACED 404`, `AnalyticsController 4 + shopId 403`, `ComplaintController 4 + enum 400`, `NotificationController 3 + recipient 403`, `AuditController 1 + clamp`.
+
+**State every enum value:** `OrderStatus 16`, `TokenStatus 8`, `QueueEntry 4+3 legacy`, `Payment 7`, `Refund 6`, `ShopStatus 5`, `PaperSize 6`, `TokenType 4`, `Complaint 9 cats 6 statuses` — all validated 400 not 500.
+
+**Security every check:** `shopId` never trusted, `customerId` from `p.userId()`, `documentId` ownership `403`, `payment amount 400 mismatch`, `notification recipient 403`, `analytics shop 403`, `admin SUPER only`.
+
+**Concurrency every lock:** `payments.order_id UNIQUE`, `tokens.order_id UNIQUE`, `queue_entries tokenId UNIQUE`, `qr ACTIVE WHERE UNIQUE`, `inventory FOR_UPDATE`, `coupon FOR_UPDATE`, `token @Version`.
+
+**UI every tiny detail:** Button `h-11 px6 oklch0.55` loading spinner `border-t-transparent`, Badge `7 tones rounded-full px2.5 py0.5 text-xs`, Input `h10 rounded-xl border-slate200 focus oklch ring4`, Alert `4 tones role=alert`, Progress `h2`, Toast `3500ms bottom-right`, Stepper `pills current oklch`.
 

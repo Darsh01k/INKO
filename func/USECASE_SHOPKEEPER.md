@@ -1,4 +1,4 @@
-# Use Cases — Shopkeeper (ROLE_SHOPKEEPER, accountType SHOP_OWNER) v2.0 Exhaustive
+# Use Cases — Shopkeeper (ROLE_SHOPKEEPER, accountType SHOP_OWNER) v6.0 Redo Ultra Detailed
 
 **Actor:** Shopkeeper owner of `shops.owner_user_id` — roles [SHOPKEEPER may+ CUSTOMER], register SHOP_OWNER → CUSTOMER+SHOPKEEPER, perms 8 shop:manage_own etc, `lastLoginRole shop`
 **Source:** `ShopLogin.tsx` `Welcome.tsx` `shop/Dashboard.tsx` `QueueManage.tsx` `Shops.tsx` `Pricing.tsx` `Qr.tsx` `Account.tsx` + `ShopController` `CatalogController` `PricingController` `TokenService` `QrService` `AnalyticsService`
@@ -67,4 +67,7 @@
 - **Flow:** /shop/profile Badge SHOPKEEPER home /shop/dashboard, /shop/settings 4 rows bell/sound/moon/globe localStorage speech.
 
 *Shop flows verified static; live after PG fix.*
+
+
+
 

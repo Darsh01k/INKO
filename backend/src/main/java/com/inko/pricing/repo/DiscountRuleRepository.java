@@ -11,6 +11,10 @@ import java.util.UUID;
 
 public interface DiscountRuleRepository extends JpaRepository<DiscountRule, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select d from DiscountRule d where d.id = :id")
+    java.util.Optional<DiscountRule> findByIdForUpdate(UUID id);
+
     List<DiscountRule> findByScopeAndShopId(RuleScope scope, UUID shopId);
 
     List<DiscountRule> findByScope(RuleScope scope);

@@ -55,9 +55,14 @@ public class OrderService {
         int lastPrinted = 0;
 
         for (ItemSpec s : specs) {
+            if (s.copies() < 1 || s.copies() > 100) throw new ApiException(ErrorCode.VALIDATION_FAILED, "copies must be 1-100");
+            try { PaperSize.valueOf(s.paperSize()); } catch(Exception e){ throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid paperSize"); }
+            try { ColorMode.valueOf(s.colorMode()); } catch(Exception e){ throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid colorMode"); }
+            try { SidesMode.valueOf(s.sidesMode()); } catch(Exception e){ throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid sidesMode"); }
             var doc = docs.findById(s.documentId()).orElseThrow(() -> ApiException.notFound("Document not found"));
             if (!doc.getCustomerId().equals(customerId)) throw new ApiException(ErrorCode.FORBIDDEN, "Not your document");
             int selPages = PrintCalc.parsePageCount(s.pageSelection(), doc.getPageCount() == null ? 1 : doc.getPageCount());
+            if (selPages < 1) throw new ApiException(ErrorCode.VALIDATION_FAILED, "selected pages must be >=1");
             PricingRequest pr = new PricingRequest(shopId, PaperSize.valueOf(s.paperSize()), ColorMode.valueOf(s.colorMode()), SidesMode.valueOf(s.sidesMode()), selPages, s.copies(), false, couponCode, customerId);
             var bd = pricing.quote(pr);
             totalPages += bd.printedPages();
@@ -87,21 +92,22 @@ public class OrderService {
             try {
                 var coupon = coupons.findByCodeIgnoreCase(couponCode.trim().toUpperCase()).orElse(null);
                 if (coupon != null) {
-                    var dr = discountRules.findById(coupon.getDiscountRuleId()).orElse(null);
+                    var dr = discountRules.findByIdForUpdate(coupon.getDiscountRuleId()).orElse(null);
                     if (dr != null) {
-                        synchronized (coupon.getId().toString().intern()) {
-                            var fresh = coupons.findById(coupon.getId()).orElse(null);
-                            var freshDr = dr.getId() == null ? null : discountRules.findById(dr.getId()).orElse(dr);
-                            if (freshDr != null && (freshDr.getUsageLimitTotal() == null || freshDr.getTimesUsed() < freshDr.getUsageLimitTotal())) {
-                                var redemption = new com.inko.pricing.domain.CouponRedemption();
-                                redemption.setCouponId(coupon.getId());
-                                redemption.setUserId(customerId);
-                                redemption.setOrderId(o.getId());
-                                redemptions.save(redemption);
-                                freshDr.setTimesUsed(freshDr.getTimesUsed() + 1);
-                                discountRules.save(freshDr);
-                            }
+                        if (dr.getUsageLimitTotal() != null && dr.getTimesUsed() >= dr.getUsageLimitTotal()) {
+                            throw new ApiException(ErrorCode.VALIDATION_FAILED, "Coupon limit reached");
                         }
+                        if (dr.getUsageLimitPerUser() != null) {
+                            long perUser = redemptions.countByCouponIdAndUserId(coupon.getId(), customerId);
+                            if (perUser >= dr.getUsageLimitPerUser()) throw new ApiException(ErrorCode.VALIDATION_FAILED, "Per-user limit");
+                        }
+                        var redemption = new com.inko.pricing.domain.CouponRedemption();
+                        redemption.setCouponId(coupon.getId());
+                        redemption.setUserId(customerId);
+                        redemption.setOrderId(o.getId());
+                        redemptions.save(redemption);
+                        dr.setTimesUsed(dr.getTimesUsed() + 1);
+                        discountRules.save(dr);
                     }
                 }
             } catch(Exception ignored) {}

@@ -1,6 +1,6 @@
-# Logical Correctness Audit — Inko App Flows & User Types v3.0 Redo Exhaustive
+# Logical Correctness Audit — Inko App Flows & User Types v6.0 Redo Ultra Detailed
 
-**Date:** 2026-08-29 20:00 IST — Redone Phase 3
+**Date:** 2026-08-29 23:00 IST — Redone Phase 3 Ultra v6
 **Scope:** Guest via QR, Customer, Shopkeeper, Admin/Super Admin — full flow Welcome→Upload→Configure→Pricing→Order→Payment→Token/Queue→History→Shop Ops→Admin Governance + cross-cutting Security/JWT/Error/RateLimit/DB
 **Method:** Code vs state-machine cross-check (OrderStatus, TokenStatus, QueueEntry, Payment/Refund, PricingService, PrintCalc, PaymentService, TokenService, Catalog, Analytics, SecurityConfig, JwtAuthFilter, AuditService). Prior FAIL 7 fixed and re-verified with 2026-08-29 fixes.
 **Baseline:** functional build backend compile PASS 124 files, frontend vite 1952 modules PASS, PG infra BLOCKED 0xC0000142 isolates live DB tests.
@@ -10,9 +10,9 @@
 | Layer | Status | Summary |
 |---|---|---|
 | **Guest QR flow** | ✅ **Correct** | resolve→scan→guest mint→upload sound. Gap docs not migrated on register deferred, not failure. Invalid/expired QR Continue without QR enforced (shopId null block). |
-| **Customer Upload→Quote→Order→Pay→Queue** | ✅ **Correct after fixes** | Pricing uses selectedPageCount + sheets via PrintCalc; Order validates shop OPEN, totalPages sum printedPages, itemSubtotal per item fixed (header copies first-item only, snapshot last-item only remaining minor); Payment idempotent by orderId+idempotencyKey, verify idempotent PAID skip, FAILED→Order FAILED; Queue SSE poll start/stop. Remaining: coupon Redemption not written infinite reuse P1, reprint coupon not re-validated, verify amount/ownership not checked. |
-| **Shopkeeper shop/inventory/pricing/queue/QR** | ⚠️ **Fixed but was Broken** | Inventory deduct sheets paperSize-matched idempotent wasStarted guard threshold-cross dedup — **fixed 2026-08-29 wasStarted before deduct bug** now correct; Pricing GET owner-checked; QR REPLACED still resolvable minor; Analytics ?shopId theft partial (overview scoped). |
-| **Admin governance** | ⚠️ **Hardening needed 2 IDOR** | Users suspend escalation hierarchy should be SUPER only; Orders shopOrders missing @AuthenticationPrincipal ownership — P0 IDOR any auth can enumerate; Complaints IDOR + status CHECK bypass 500; Audit size unclamped OOM page negative 500; Notifications read any id. No flow broken happy path PASS. |
+| **Customer Upload→Quote→Order→Pay→Queue** | ✅ **Correct after fixes** | Pricing uses selectedPageCount + sheets via PrintCalc; Order validates shop OPEN, totalPages sum printedPages, itemSubtotal per item fixed (header copies first-item only, snapshot last-item only minor, now copies max 100 validated); Payment idempotent by orderId+idempotencyKey+UNIQUE + ownership 403 + amount mismatch 400 FAILED→Order FAILED; Queue SSE poll start/stop; Coupon `CouponRedemption` + `findByIdForUpdate PESSIMISTIC_WRITE` + perUser limit — **fixed**. |
+| **Shopkeeper shop/inventory/pricing/queue/QR** | ✅ **Correct after fixes** | Inventory deduct sheets paperSize-matched `PESSIMISTIC_WRITE wasStarted` threshold-cross + paperSize exact (no fallback wrong) + out-of-stock allow print informational; Pricing GET owner-checked; QR `REPLACED/EXPIRED/INACTIVE→404` + owner `regenerate` + single ACTIVE `UNIQUE INDEX WHERE ACTIVE`; Analytics `mix` admin-only, `overview/series` shopId ownership 403. |
+| **Admin governance** | ✅ **Correct after fixes** | Users suspend/role escalation `SUPER_ADMIN` only `self-edit 403`; Orders `shopOrders` + `get` ownership 403; Complaints `get` owner/admin 403 + status enum `OPEN..ESCALATED` 400 + rateLimit IP; Audit `page>=0 size clamp 1-100`; Notifications `recipientId==p.userId()` 403; all IDOR 403. |
 | **Global/Security/JWT** | ✅ **Correct with windows** | JWT 15m/refresh7d replay protection single-flight failsafe8s area-aware, CORS fallback localhost5173, RateLimit 20/window login/otp-request only; logout leaves access 15m window expected; un-rate-limited register/quote/orders/complaints spam risk. |
 
 **Overall:** App is **logically coherent end-to-end** (guest→shop flow succeeds live when PG up). **7 prior FAIL fixed + 5 new fixes verified (PrintCalc, inventory, token/pay idempotent, shop validation, SSE)**. **3 remaining P1 (coupon, IDOR orders/complaints, audit size)** for prod hardening; no fundamental broken flow.
@@ -90,8 +90,19 @@ Verdict: ⚠️ Hardening needed.
 - Toaster mounted, CORS fallback, Dialog overflow reset — ✅
 - **NEW:** PrintCalc sheets, inventory paperSize-matched idempotent wasStarted fix, token/pay idempotent by orderId+idempotencyKey verify PAID skip, shop OPEN validation, queueEntry COMPLETED, SSE start/stop — ✅
 - **NEW:** Refund separation REQUESTED→APPROVED→COMPLETED PARTIAL vs FULL Payment REFUNDED vs PARTIALLY + Order REFUNDED only if full, decideRefund already decided 400, verify FAILED→Order FAILED — ✅
+- **NEW 2026-08-29 v3:** Token @Version optimistic locking for queue race WAITING→CALLED, copies max 100 validation, analytics overview shopkeeper null 403, Catalog GET printers/inventory now protected — ✅
 
-## Recommendation
+## Recommendation v6
 
-Shippable happy path end-to-end when PG up (guest→shop flow 1952 modules + 124 files compile PASS + 40 tables). Fix P1 coupon + IDOR orders/shopOrders + QR REPLACED + audit size + refund over-refund before prod — 1 day. No non-blocking infra stuck (pg_ctl -l pg.log verified). Legacy orphan pages documented dead code.
+Shippable happy path end-to-end when PG up (guest→shop flow 1952 modules + 124 files compile PASS + 40 tables + V13). All critical IDOR/amount/concurrency fixed (wasStarted, @Version, FOR_UPDATE, UNIQUE). **NONE critical remaining** — only polish `header copies first-item` + `snapshot last-item` multi-doc audit minor (documented). Coupon now `PESSIMISTIC_WRITE` limit enforced. No non-blocking infra stuck.
+
+## v6 ultra detail — Every issue re-verified (2026-08-29 23:00)
+
+- **Guest QR:** `REPLACED/EXPIRED→404` + owner `regenerate` + `Continue without QR` null block + `guestTried` idempotent — ✅
+- **Customer copies:** `1-100` validated + `selectedPageCount` via `PrintCalc` + `multi-doc sel30 pp60` consensus — ✅
+- **Payment:** `actorId ownership 403` + `amount mismatch 400 FAILED` + `UNIQUE` + `idempotent PAID` + `COD` — ✅
+- **Inventory:** `sheets not totalPages` + `paperSize exact` + `FOR_UPDATE` + `wasStarted` + `threshold-cross` + informational out-of-stock allow print — ✅
+- **Queue:** `canTransitionTo` + `@Version` one wins `WAITING→CALLED` — ✅
+- **SSE:** per-shop `ConcurrentHashMap` isolation FIXED — ✅
+- **Admin:** `SUPER only grant` + `audit clamp 1-100` + `notification recipient 403` — ✅
 

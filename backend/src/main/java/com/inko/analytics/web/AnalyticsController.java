@@ -32,7 +32,12 @@ public class AnalyticsController {
     }
 
     @GetMapping("/overview")
-    public Map<String,Object> overview(@AuthenticationPrincipal InkoPrincipal p, @RequestParam(required = false) UUID shopId) { checkShopAccess(p, shopId); return svc.overview(shopId); }
+    public Map<String,Object> overview(@AuthenticationPrincipal InkoPrincipal p, @RequestParam(required = false) UUID shopId) {
+        if (shopId == null && p != null && p.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SHOPKEEPER")) && p.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"))) {
+            throw new com.inko.common.error.ApiException(com.inko.common.error.ErrorCode.FORBIDDEN, "Shopkeeper must specify own shopId");
+        }
+        checkShopAccess(p, shopId); return svc.overview(shopId);
+    }
 
     @GetMapping("/revenue")
     public Map<String,Object> revenue(@AuthenticationPrincipal InkoPrincipal p, @RequestParam(required = false) UUID shopId) {

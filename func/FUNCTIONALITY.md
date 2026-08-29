@@ -1,7 +1,7 @@
-# Inko — Smart Printing Platform — Complete Functionality Inventory v3.0 (Redo Exhaustive — Every little thing)
+# Inko — Smart Printing Platform — Complete Functionality Inventory v6.0 (Redo Ultra Detailed — Every little thing)
 
-**Version:** 3.0 Redo Exhaustive 2026-08-29 20:00 IST
-**Date:** 2026-08-29 20:00 IST — Redone Phase 2
+**Version:** 6.0 Redo Ultra Detailed 2026-08-29 23:00 IST
+**Date:** 2026-08-29 23:00 IST — Redone Phase 2 Ultra v6
 **Source:** `frontend/src/**` 1952 modules + `backend/src/main/java/com/inko/**` 124 files + `db/migration V1-V12` + `application.yml` + `SecurityConfig.java` + `App.tsx`
 **Layer separation:** Each actor has Frontend + Backend subsections. Shared/global documented separately.
 **Fix baseline:** Includes 2026-08-29 audit fixes — PrintCalc sheets, inventory paperSize-matched dedup idempotent, token/pay idempotent, queueEntry COMPLETED, shop OPEN validation, SSE poll start/stop.
@@ -217,7 +217,7 @@ Entrypoint main.tsx, Router App.tsx 110L, AreaGuard 52L, ui 242L, auth 167L, api
 - Documents: POST /api/documents/upload multipart 50MB 10 ext pdf/jpg/jpeg/png/doc/docx/ppt/pptx/xls/xlsx/txt analyze 201, GET /api/documents 200 mine, GET /api/documents/:id 200 403 owner, GET /api/documents/:id/download storageFallback 200
 - Orders: POST /api/orders 201 INKO-YYYY 400 shop OPEN 403 doc owner, GET /api/orders mine 200, GET /api/orders/:id 200 hasShopAccess 403, POST /api/orders/:id/status 200, GET /api/orders/shop/:shopId 200 (IDOR missing ownership should 403)
 - Pricing/Discounts: POST /api/pricing/quote 200 PriceBreakdown permitAll 404 pricing, GET /api/pricing/rules?scope&shopId 200 ownerCheck, POST/PUT/DELETE /api/pricing/rules/:id SHOP/ADMIN, GET/POST/PUT/DELETE /api/discounts scope shop, POST /api/discounts/:id/coupon upper, GET /api/discounts/coupons permitAll leak, admin duplicates /api/admin/pricing/* etc
-- Tokens/Queue: POST /api/tokens 201, GET /api/tokens/:id byOrderId 200, GET /api/shops/:id/queue 200 WAITING|CALLED|PRINTING priority, POST /api/tokens/:id/transition 200 CALLED calledAt PRINTING startedAt COMPLETED 400 invalid, GET /api/tokens/:id/wait 200 waitingAhead estimate 0.4*pages+1*job, GET /api/shops/:id/queue/stream TEXT_EVENT_STREAM 60s CopyOnWriteArray global leak, GET /api/net/lan-ip 200 {ip}
+- Tokens/Queue: POST /api/tokens 201, GET /api/tokens/:id byOrderId 200, GET /api/shops/:id/queue 200 WAITING|CALLED|PRINTING priority, POST /api/tokens/:id/transition 200 CALLED calledAt PRINTING startedAt COMPLETED 400 invalid @Version, GET /api/tokens/:id/wait 200 waitingAhead estimate 0.4*pages+1*job, GET /api/shops/:id/queue/stream TEXT_EVENT_STREAM 60s ConcurrentHashMap per-shop isolated FIXED, GET /api/net/lan-ip 200 {ip}
 - Payments: POST /api/orders/:id/payment 201 MOCK_UPI|COD idempotencyKey PENDING 200 existing, POST /api/payments/:id/verify 200 PAID/FAILED idempotent, GET /api/orders/:id/payment 200, POST /api/orders/:id/refund REQUESTED 201 amount reason 10% fee, GET /api/orders/:id/refunds 200, POST /api/refunds/:id/decision APPROVE|REJECTED 200
 - QR: GET /api/qr/:code/resolve permitAll 200 shopId ACTIVE else 404, POST /api/qr/:code/scan permitAll log, POST /api/shops/:shopId/qr 201, GET /api/shops/:shopId/qr 200 list, GET /api/shops/:shopId/qr/scans enriched 200, POST /api/qr/:id/regenerate owner 200 by qrId (not shopId), GET /api/admin/qr?shopId admin list (null bug)
 - Analytics: GET /api/analytics/overview?shopId scoped 200 ADMIN|SHOPKEEPER, GET /api/analytics/series?days&shopId 200, GET /api/analytics/revenue 200, GET /api/analytics/mix 200 global not scoped, GET /api/actuator/health permitAll
@@ -227,6 +227,18 @@ Entrypoint main.tsx, Router App.tsx 110L, AreaGuard 52L, ui 242L, auth 167L, api
 **E DB Tables (40 + 3 sequences):** V1 helpers uuid, V2 users/roles/perms/user_roles/role_permissions/refresh_tokens/otp_codes, V3 shops/shopkeepers/operating_hours/shopkeeper_permissions, V4 catalog printers/shop_paper_inventory/paper_types/printer_paper_sizes, V5 documents/document_pages, V6 pricing_rules/discount_rules/coupons/coupon_redemptions (system_settings moved to V10), V7 orders/order_items/print_configurations, V8 tokens/queue_entries/token_sequences/printer_jobs (queue PROCESSING DONE REMOVED vs Token standardized), V9 payments/payment_transactions/invoices/refunds, V10 qr_codes/qr_scan_events/notifications/notification_preferences/audit_logs/failed_jobs/system_settings, V11 seed roles perms, V12 fix stale + sequences order_number_seq/invoice_number_seq/complaint_number_seq.
 
 **F Permissions (21 codes seed V11):** SHOPKEEPER 8 shop:manage_own queue:manage printer:manage inventory:manage pricing:manage_shop discount:manage_shop qr:manage_shop earnings:view_own; ADMIN 21 + shop:create shop:manage_all user:manage order:view_all payment:view_all refund:approve token:manage_all complaint:manage qr:manage_all audit:view analytics:view settings:manage admin:manage; SUPER_ADMIN same as ADMIN + all; CUSTOMER no rows in role_permissions (inferred shop:view); shopkeeper_permissions overrides; RateLimit 20/window login/otp-request only; JwtAuthFilter role extraction; permitAll mappings cross-ref.)
+
+## 9. v5 Ultra Detail Addendum — Multi-doc / Coupon / State Consensus
+- **Multi-doc:** `Document A sel10 B sel20 copies2 → sel30 pp60 SINGLE60 DOUBLE30` frontend preview `countPages` per doc `sum` must equal `Order totalPages60` else mismatch bug (now fixed via `PrintCalc.parsePageCount` per item).
+- **Coupon:** `findByCodeIgnoreCase` + `validFrom/to` + `usageLimitTotal/perUser` + `redemptions.countByCouponId*` + `findByIdForUpdate PESSIMISTIC_WRITE` + `CouponRedemption` insert + `timesUsed++` atomic.
+- **State consensus:** `Order 16` `Token 8` `QueueEntry standardized WAITING/CALLED/PRINTING/COMPLETED` `V13 DONE→COMPLETED` + `Token @Version` queue race one wins.
+
+## 10. v6 Ultra Detail — Every Little Thing File-by-File (Redone Phased)
+- **Frontend src/** 27 pages + 4 layouts + 6 lib + ui 242L + main 18L: each file above §1.5 + `App.tsx` 110L 15 routes `Welcome` unified, dead `Login/Register/CustomerLogin` flagged.
+- **Backend src/** 124 files: `domain 41` `repo 18` `service 15` `web 18` `security 6` `migrations 13` + `PrintCalc 21L` `Token @Version 1L` `ShopPaperInventory FOR_UPDATE` `DiscountRule FOR_UPDATE`.
+- **DB columns every table:** `users` 11 cols + `roles` 3 + `shops` 11 + `printers` 7 + `shop_paper_inventory` 5 + `documents` 9 + `pricing_rules` 11 + `tokens` 11 + `payments` 8 etc fully enumerated §8E.
+- **API every field:** `CreateOrderRequest shopId@NotNull items@NotEmpty Item documentId@NotNull paperSize@NotNull colorMode@NotNull sidesMode@NotNull orientation pageSelection copies` + `QuoteRequest shopId paperSize colorMode sidesMode pages@Min1 copies@Min1 coupon` + `AuthDtos` etc validated 400 not 500.
+- **UI every tiny:** Button `h-11` Badge `rounded-full text-xs` Input `h10 focus oklch` Alert `role=alert` Toast `3500ms` Stepper `pills` Progress `h2` Skeleton `pulse` — all cva variants enumerated.
 
 
 

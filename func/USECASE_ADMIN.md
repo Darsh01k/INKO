@@ -1,4 +1,4 @@
-# Use Cases — Admin / Super Admin v2.0 Exhaustive
+# Use Cases — Admin / Super Admin v6.0 Redo Ultra Detailed
 
 **Actor:** Admin `ROLE_ADMIN` / Super Admin `ROLE_SUPER_ADMIN` — hierarchy SUPER > ADMIN, perms 21 vs super 25+, lastLoginRole admin, AreaGuard admin
 **Source:** `AdminLogin.tsx` `admin/Dashboard.tsx` `admin/Shops.tsx` `admin/Users.tsx` `admin/Orders.tsx` `admin/Complaints.tsx` `admin/Audit.tsx` + `AdminUserService` `AuditService` `ComplaintController` `ShopController` `AnalyticsService` `SecurityConfig`
@@ -50,4 +50,7 @@
 - **Flow:** SUPER can grant ADMIN, suspend ADMIN, system config, high governance; ADMIN cannot. Hierarchy enforced via role check.
 
 *Admin flows verified static; hardening P1 after PG fix.*
+
+
+
 

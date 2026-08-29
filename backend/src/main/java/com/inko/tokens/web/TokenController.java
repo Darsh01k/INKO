@@ -31,6 +31,7 @@ public class TokenController {
     private final TokenService svc;
     private final com.inko.orders.repo.OrderRepository orders;
     private final UserRepository users;
+    private final java.util.concurrent.ConcurrentHashMap<UUID, List<SseEmitter>> emittersByShop = new java.util.concurrent.ConcurrentHashMap<>();
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
     public TokenController(TokenService svc, OrderRepository orders, UserRepository users) {
@@ -68,9 +69,10 @@ public class TokenController {
     @GetMapping(value = "/shops/{shopId}/queue/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable UUID shopId) {
         SseEmitter em = new SseEmitter(60_000L);
+        emittersByShop.computeIfAbsent(shopId, k -> new CopyOnWriteArrayList<>()).add(em);
         emitters.add(em);
-        em.onCompletion(() -> emitters.remove(em));
-        em.onTimeout(() -> emitters.remove(em));
+        em.onCompletion(() -> { emitters.remove(em); emittersByShop.getOrDefault(shopId, List.of()).remove(em); });
+        em.onTimeout(() -> { emitters.remove(em); emittersByShop.getOrDefault(shopId, List.of()).remove(em); });
         try { em.send(SseEmitter.event().name("connected").data("ok")); } catch (IOException ignored) {}
         return em;
     }
@@ -85,8 +87,9 @@ public class TokenController {
     }
 
     private void broadcast(Token t) {
-        for (SseEmitter em : emitters) {
-            try { em.send(SseEmitter.event().name("token").data(toDto(t))); } catch (IOException e) { emitters.remove(em); }
+        var list = emittersByShop.getOrDefault(t.getShopId(), List.of());
+        for (SseEmitter em : list) {
+            try { em.send(SseEmitter.event().name("token").data(toDto(t))); } catch (IOException e) { emitters.remove(em); list.remove(em); }
         }
     }
 

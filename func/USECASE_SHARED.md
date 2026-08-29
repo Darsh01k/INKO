@@ -1,4 +1,4 @@
-# Use Cases — Shared / Global (All Actors) v2.0 Exhaustive
+# Use Cases — Shared / Global (All Actors) v6.0 Redo Ultra Detailed
 
 **Scope:** Cross-cutting auth, shells, design system, notifications, error handling, config, DB, rate limit, SSE, i18n.
 **Source:** `App.tsx` `ui.tsx` `auth.tsx` `api.ts` `settings.tsx` `sound.ts` `SecurityConfig` `JwtService` `ErrorCode` `Migrations V1-V12` `application.yml`
@@ -69,4 +69,7 @@
 - **Codes:** TOO_MANY_REQUESTS VALIDATION_FAILED PRICING_NOT_CONFIGURED CONFLICT etc, ApiError status code message details.
 
 *Global flows verified static.*
+
+
+
 

@@ -1,4 +1,4 @@
-# Use Cases — Customer (Authenticated, ROLE_CUSTOMER) v2.0 Exhaustive
+# Use Cases — Customer (Authenticated, ROLE_CUSTOMER) v6.0 Redo Ultra Detailed
 
 **Actor:** Customer — `roles [ROLE_CUSTOMER]` (may also have SHOPKEEPER if owner), `accountType CUSTOMER` → CUSTOMER only
 **Source:** `Welcome.tsx` `Dashboard.tsx` `Upload.tsx` `Configure.tsx` `OrderDetail.tsx` `Queue.tsx` `History.tsx` `Account.tsx` + `DocumentController` `PricingService` `OrderService` `PaymentService` `TokenService` `SecurityConfig`
@@ -90,4 +90,7 @@
 ---
 
 *Exhaustive customer flows verified static; live re-verify after PG fix.*
+
+
+
 
