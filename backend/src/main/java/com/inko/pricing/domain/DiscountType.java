@@ -1,3 +1,8 @@
 package com.inko.pricing.domain;
 
-public enum DiscountType { PERCENTAGE, FIXED }
+import com.fasterxml.jackson.annotation.JsonAlias;
+
+public enum DiscountType {
+    @JsonAlias("PERCENT") PERCENTAGE,
+    FIXED
+}

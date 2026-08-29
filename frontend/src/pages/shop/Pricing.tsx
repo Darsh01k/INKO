@@ -11,7 +11,7 @@ interface PricingRule {
 }
 interface DiscountRule {
   id: string; name: string; scope: string; shopId?: string | null
-  type: 'PERCENT' | 'FIXED' | string; value: number
+  type: 'PERCENTAGE' | 'FIXED' | string; value: number
   maxDiscountAmount?: number | null; minOrderAmount?: number | null; minPages?: number | null
   startsAt?: string; endsAt?: string | null; usageLimitTotal?: number | null; active?: boolean
 }
@@ -40,7 +40,7 @@ export default function ShopPricing() {
   const [savingAll, setSavingAll] = useState(false)
   const [edits, setEdits] = useState<Record<string, { price:string, effectiveFrom:string }>>({})
   const [showKeepBanner, setShowKeepBanner] = useState(false)
-  const [newDiscount, setNewDiscount] = useState({ name: '', type: 'PERCENT', value: 10, minOrderAmount: '', maxDiscountAmount: '' })
+  const [newDiscount, setNewDiscount] = useState({ name: '', type: 'PERCENTAGE', value: 10, minOrderAmount: '', maxDiscountAmount: '' })
 
   useEffect(() => {
     api.get('/shops/mine').then(r => {
@@ -136,7 +136,7 @@ export default function ShopPricing() {
   async function addCoupon(discountId: string) {
     const code = window.prompt('Coupon code (e.g. SAVE20)')
     if (!code) return
-    try { await api.post(`/discounts/${discountId}/coupon`, { code: code.toUpperCase(), usageLimitPerUser: 1 }); toast('Coupon ' + code.toUpperCase() + ' live', 'success') } catch (e) { setErr(apiErrorMessage(e)) }
+    try { await api.post(`/discounts/${discountId}/coupon`, { code: code.toUpperCase() }); toast('Coupon ' + code.toUpperCase() + ' live', 'success') } catch (e) { setErr(apiErrorMessage(e)) }
   }
 
   return (
@@ -244,7 +244,7 @@ export default function ShopPricing() {
             <div className="mt-4 space-y-3">
               <div><Label>Name</Label><Input value={newDiscount.name} onChange={e => setNewDiscount(p => ({...p, name: e.target.value}))} placeholder="Exam season offer" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Type</Label><Select value={newDiscount.type} onChange={e => setNewDiscount(p => ({...p, type: e.target.value}))}><option value="PERCENT">Percent %</option><option value="FIXED">Fixed ₹</option></Select></div>
+                <div><Label>Type</Label><Select value={newDiscount.type} onChange={e => setNewDiscount(p => ({...p, type: e.target.value}))}><option value="PERCENTAGE">Percent %</option><option value="FIXED">Fixed ₹</option></Select></div>
                 <div><Label>Value</Label><Input type="number" min={1} value={newDiscount.value} onChange={e => setNewDiscount(p => ({...p, value: Number(e.target.value)}))} /></div>
                 <div><Label>Min order ₹</Label><Input type="number" min={0} value={newDiscount.minOrderAmount} onChange={e => setNewDiscount(p => ({...p, minOrderAmount: e.target.value}))} placeholder="—" /></div>
                 <div><Label>Max cap ₹</Label><Input type="number" min={0} value={newDiscount.maxDiscountAmount} onChange={e => setNewDiscount(p => ({...p, maxDiscountAmount: e.target.value}))} placeholder="—" /></div>
