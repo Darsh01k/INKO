@@ -58,7 +58,7 @@ export default function ShopDashboard() {
     if (period==='hour') params.days = 1
     else if (period==='day') params.days = 7
     else if (period==='week') params.days = 30
-    else if (period==='year') params.days = 30
+    else if (period==='year') params.days = 365
     api.get('/analytics/series', { params }).then(s => {
       let data:any[] = s.data ?? []
       if (period==='hour'){

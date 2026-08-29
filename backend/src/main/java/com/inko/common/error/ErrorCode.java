@@ -21,6 +21,7 @@ public enum ErrorCode {
     COUPON_LIMIT_REACHED(HttpStatus.BAD_REQUEST),
     DISCOUNT_NOT_APPLICABLE(HttpStatus.BAD_REQUEST),
     PRICE_OUT_OF_BOUNDS(HttpStatus.BAD_REQUEST),
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus httpStatus;

@@ -39,10 +39,10 @@ public class Shop {
     @Column(length = 12)
     private String pincode;
 
-    @Column(precision = 9, scale = 6)
+    @Column(columnDefinition = "NUMERIC(9,6)")
     private Double latitude;
 
-    @Column(precision = 9, scale = 6)
+    @Column(columnDefinition = "NUMERIC(9,6)")
     private Double longitude;
 
     @Column(length = 20)

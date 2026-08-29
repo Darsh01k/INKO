@@ -42,8 +42,10 @@ public class PricingController {
     }
 
     @GetMapping("/rules")
-    public List<PricingRuleResponse> list(@RequestParam(required = false) RuleScope scope,
+    public List<PricingRuleResponse> list(@AuthenticationPrincipal InkoPrincipal principal,
+                                          @RequestParam(required = false) RuleScope scope,
                                           @RequestParam(required = false) UUID shopId) {
+        if (shopId != null) enforceShopAccessOnRead(principal, shopId);
         return adminService.list(scope, shopId).stream().map(PricingController::toDto).toList();
     }
 
@@ -86,6 +88,19 @@ public class PricingController {
         var shop = shops.findById(shopId).orElseThrow(() -> com.inko.common.error.ApiException.notFound("Shop not found"));
         if (!p.userId().equals(shop.getOwnerUserId()))
             throw com.inko.common.error.ApiException.forbidden("You do not manage this shop");
+    }
+
+    private void enforceShopAccessOnRead(InkoPrincipal principal, UUID shopId) {
+        if (principal == null) return;
+        boolean isAdmin = principal.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        if (isAdmin) return;
+        boolean isKeeper = principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SHOPKEEPER"));
+        if (!isKeeper) return;
+        var shop = shops.findById(shopId).orElse(null);
+        if (shop != null && !principal.userId().equals(shop.getOwnerUserId())) {
+            throw com.inko.common.error.ApiException.forbidden("You do not manage this shop");
+        }
     }
 
     private static PricingRule toEntity(PricingRuleRequest r) {

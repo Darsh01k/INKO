@@ -11,6 +11,7 @@ import com.inko.identity.web.dto.AuthDtos.OtpVerifyRequest;
 import com.inko.identity.web.dto.AuthDtos.RefreshRequest;
 import com.inko.identity.web.dto.AuthDtos.RegisterRequest;
 import com.inko.identity.web.dto.AuthDtos.ResetPasswordRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,9 +26,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService auth;
+    private final com.inko.common.security.RateLimitService rateLimit;
 
-    public AuthController(AuthService auth) {
+    public AuthController(AuthService auth, com.inko.common.security.RateLimitService rateLimit) {
         this.auth = auth;
+        this.rateLimit = rateLimit;
     }
 
     @PostMapping("/register")
@@ -38,7 +41,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+    public AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+        rateLimit.checkIp(http.getRemoteAddr(), "login");
         return auth.loginByIdentifierAndPassword(request.identifier(), request.password());
     }
 
@@ -60,7 +64,8 @@ public class AuthController {
     }
 
     @PostMapping("/otp/request")
-    public OtpIssueResponse requestOtp(@Valid @RequestBody OtpIssueRequest request) {
+    public OtpIssueResponse requestOtp(@Valid @RequestBody OtpIssueRequest request, HttpServletRequest http) {
+        rateLimit.checkIp(http.getRemoteAddr(), "otp-request");
         return auth.requestLoginOtp(request.identifier());
     }
 

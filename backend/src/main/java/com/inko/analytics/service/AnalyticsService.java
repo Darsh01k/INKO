@@ -104,7 +104,7 @@ public class AnalyticsService {
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
     public List<Map<String,Object>> dailySeries(int days, UUID shopId) {
-        int safeDays = Math.max(1, Math.min(days, 90));
+        int safeDays = Math.max(1, Math.min(days, 365));
         String filter = shopId == null
                 ? ""
                 : " AND shop_id = '" + shopId.toString().replace("'", "") + "'";

@@ -164,10 +164,13 @@ export function Progress({ value, className }: { value: number; className?: stri
 // ── Dialog (accessible, lightweight) ──
 export function Dialog({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: React.ReactNode; title?: string }) {
   React.useEffect(() => {
-    if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
+    if (open) {
+      document.addEventListener('keydown', onKey)
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
   }, [open, onClose])
   if (!open) return null

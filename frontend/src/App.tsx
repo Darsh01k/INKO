@@ -29,10 +29,12 @@ import ShopManage from '@/pages/shop/Shops'
 import { Profile, SettingsPage } from '@/pages/Account'
 import QrScan from '@/pages/QrScan'
 import ShopPrint from '@/pages/ShopPrint'
+import { Toaster } from '@/components/ui'
 
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster />
       <Routes>
         {/* Unified welcome / sign-in / registration — routes each user to their console */}
         <Route path="/login" element={<Welcome />} />
