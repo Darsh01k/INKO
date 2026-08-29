@@ -45,7 +45,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             MissingServletRequestParameterException.class})
     public ResponseEntity<ApiError> handleUnreadable(Exception ex) {
-        return build(400, ErrorCode.VALIDATION_FAILED.name(), "Malformed request body or parameter", Map.of());
+        String detail = ex.getMessage() != null ? ex.getMessage().split("\n")[0] : "";
+        if (detail.length() > 300) detail = detail.substring(0, 300);
+        return build(400, ErrorCode.VALIDATION_FAILED.name(), "Malformed request body or parameter: " + detail, Map.of("detail", detail));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
