@@ -37,14 +37,21 @@ public class PaymentService {
     }
 
     @Transactional
-    public Payment initiate(UUID orderId, String method, String idempotencyKey) {
+    public Payment initiate(UUID orderId, String method, String idempotencyKey) { return initiate(null, orderId, method, idempotencyKey); }
+    @Transactional
+    public Payment initiate(UUID actorId, UUID orderId, String method, String idempotencyKey) {
         if (idempotencyKey != null) {
             var existing = payments.findByIdempotencyKey(idempotencyKey);
             if (existing.isPresent()) return existing.get();
         }
         Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
-        if (payments.findByOrderId(orderId).isPresent()) throw new ApiException(com.inko.common.error.ErrorCode.CONFLICT, "Payment already exists for order");
-        // Drive the order into PAYMENT_PENDING legally (CREATED -> CONFIGURED -> PAYMENT_PENDING)
+        if (actorId != null && !o.getCustomerId().equals(actorId)) {
+            boolean isAdmin = false;
+            try { var ord = orders.findById(orderId).orElse(null); } catch(Exception ignored) {}
+            throw new ApiException(com.inko.common.error.ErrorCode.FORBIDDEN, "Not your order");
+        }
+        var existingPay = payments.findByOrderId(orderId);
+        if (existingPay.isPresent()) return existingPay.get();
         if (o.statusEnum() == OrderStatus.CREATED) { o = orderService.transition(orderId, OrderStatus.CONFIGURED, null); }
         if (o.statusEnum() == OrderStatus.CONFIGURED) { o = orderService.transition(orderId, OrderStatus.PAYMENT_PENDING, null); }
         Payment p = new Payment();
@@ -53,30 +60,46 @@ public class PaymentService {
         if (!"COD".equals(method)) {
             p.setProviderOrderRef(provider.createCheckout(orderId, o.getFinalAmount(), method));
         } else {
-            // COD confirms immediately and issues the queue token via the state machine
             orderService.transition(orderId, OrderStatus.COD_SELECTED, null);
             p.setStatus("PAID"); p.setPaidAt(Instant.now());
         }
-        return payments.save(p);
+        try { return payments.save(p); } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            return payments.findByOrderId(orderId).orElseThrow(() -> e);
+        }
     }
 
     @Transactional
-    public Payment verify(UUID paymentId, Map<String,String> payload) {
+    public Payment verify(UUID paymentId, Map<String,String> payload) { return verify(null, paymentId, payload); }
+    @Transactional
+    public Payment verify(UUID actorId, UUID paymentId, Map<String,String> payload) {
         Payment p = payments.findById(paymentId).orElseThrow(() -> ApiException.notFound("Payment not found"));
+        if (actorId != null) assertOrderAccess(actorId, p.getOrderId());
+        if ("PAID".equals(p.getStatus())) return p;
+        var orderForAmount = orders.findById(p.getOrderId()).orElse(null);
+        if (orderForAmount != null && p.getAmount() != null && orderForAmount.getFinalAmount() != null && p.getAmount().compareTo(orderForAmount.getFinalAmount()) != 0) {
+            p.setStatus("FAILED");
+            payments.save(p);
+            throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Payment amount mismatch");
+        }
         boolean ok = provider.verify(p.getProviderOrderRef(), payload);
         if (ok) {
             p.setStatus("PAID"); p.setPaidAt(Instant.now());
+            payments.save(p);
             var order = orders.findById(p.getOrderId()).orElse(null);
-            if (order != null && !OrderStatus.PAID.name().equals(order.getStatus())) {
-                // Legal transition PAYMENT_PENDING -> PAID; also issues the queue token (-> QUEUED)
-                orderService.transition(p.getOrderId(), OrderStatus.PAID, order.getCustomerId());
-                notifier.create(order.getCustomerId(), "PAYMENT_CONFIRMED", "Payment received",
-                        "₹" + p.getAmount() + " confirmed — your queue token has been issued.", "/order/" + order.getId());
-            } else if (order != null) {
-                order.setStatus(OrderStatus.PAID.name()); orders.save(order);
+            if (order != null) {
+                String cur = order.getStatus();
+                if (OrderStatus.PAYMENT_PENDING.name().equals(cur) || OrderStatus.CONFIGURED.name().equals(cur) || OrderStatus.CREATED.name().equals(cur)) {
+                    try { orderService.transition(p.getOrderId(), OrderStatus.PAID, order.getCustomerId()); } catch(Exception e){ order.setStatus(OrderStatus.PAID.name()); orders.save(order); }
+                    notifier.create(order.getCustomerId(), "PAYMENT_CONFIRMED", "Payment received",
+                            "₹" + p.getAmount() + " confirmed — your queue token has been issued.", "/order/" + order.getId());
+                }
             }
         } else {
             p.setStatus("FAILED");
+            var order = orders.findById(p.getOrderId()).orElse(null);
+            if (order != null && OrderStatus.PAYMENT_PENDING.name().equals(order.getStatus())) {
+                try { order.setStatus(OrderStatus.FAILED.name()); orders.save(order); } catch(Exception ignored){}
+            }
         }
         return payments.save(p);
     }
@@ -84,11 +107,17 @@ public class PaymentService {
     @Transactional
     public Refund requestRefund(UUID orderId, BigDecimal amount, String reason, UUID requestedBy) {
         Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
+        if (requestedBy != null && !o.getCustomerId().equals(requestedBy)) throw new ApiException(com.inko.common.error.ErrorCode.FORBIDDEN, "Not your order");
         Payment p = payments.findByOrderId(orderId).orElseThrow(() -> ApiException.notFound("Payment not found"));
         if (!"PAID".equals(p.getStatus()) && !"PARTIALLY_REFUNDED".equals(p.getStatus())) throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Only paid orders can be refunded");
         BigDecimal max = p.getAmount();
         BigDecimal refundAmt = amount == null ? max : amount;
+        if (refundAmt.compareTo(BigDecimal.ZERO) <= 0) throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Refund must be > 0");
         if (refundAmt.compareTo(max) > 0) throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Refund exceeds paid amount");
+        BigDecimal already = refunds.findByOrderId(orderId).stream().filter(r -> !"REJECTED".equals(r.getStatus())).map(Refund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (already.add(refundAmt).compareTo(max.multiply(new BigDecimal("0.90")).add(max.multiply(new BigDecimal("0.10")))) > 0) {
+            if (already.add(refundAmt).compareTo(max) > 0) throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Total refunds exceed paid amount");
+        }
         BigDecimal fee = refundAmt.multiply(new BigDecimal("0.10")).setScale(2, RoundingMode.HALF_UP);
         BigDecimal net = refundAmt.subtract(fee).max(BigDecimal.ZERO);
         Refund r = new Refund();
@@ -103,18 +132,29 @@ public class PaymentService {
     @Transactional
     public Refund decideRefund(UUID refundId, boolean approve, UUID decidedBy) {
         Refund r = refunds.findById(refundId).orElseThrow(() -> ApiException.notFound("Refund not found"));
+        if (!"REQUESTED".equals(r.getStatus())) throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Refund already decided");
         r.setDecidedBy(decidedBy);
         if (approve) {
-            r.setStatus("COMPLETED");
+            r.setStatus("APPROVED");
             var p = payments.findById(r.getPaymentId()).orElse(null);
             if (p != null) {
                 List<Refund> all = refunds.findByPaymentId(p.getId());
-                BigDecimal total = all.stream().filter(x -> "COMPLETED".equals(x.getStatus())).map(Refund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add).add(r.getAmount());
-                p.setStatus(total.compareTo(p.getAmount()) >= 0 ? "REFUNDED" : "PARTIALLY_REFUNDED");
+                BigDecimal total = all.stream().filter(x -> "APPROVED".equals(x.getStatus()) || "COMPLETED".equals(x.getStatus())).map(Refund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add).add(BigDecimal.ZERO);
+                total = total.add(r.getAmount());
+                boolean full = total.compareTo(p.getAmount()) >= 0;
+                p.setStatus(full ? "REFUNDED" : "PARTIALLY_REFUNDED");
                 payments.save(p);
+                r.setStatus(full ? "COMPLETED" : "APPROVED");
+            } else {
+                r.setStatus("COMPLETED");
             }
             var o = orders.findById(r.getOrderId()).orElse(null);
-            if (o != null) { o.setStatus(OrderStatus.REFUNDED.name()); orders.save(o); }
+            if (o != null) {
+                boolean full = "COMPLETED".equals(r.getStatus());
+                if (full) {
+                    try { if (o.statusEnum().canTransitionTo(OrderStatus.REFUNDED)) o.setStatus(OrderStatus.REFUNDED.name()); else if (o.statusEnum().canTransitionTo(OrderStatus.CANCELLED)) o.setStatus(OrderStatus.CANCELLED.name()); else o.setStatus(OrderStatus.REFUNDED.name()); orders.save(o); } catch(Exception e){ o.setStatus(OrderStatus.REFUNDED.name()); orders.save(o); }
+                }
+            }
         } else {
             r.setStatus("REJECTED");
         }
@@ -132,4 +172,16 @@ public class PaymentService {
 
     public List<Refund> forOrder(UUID orderId) { return refunds.findByOrderId(orderId); }
     public Payment byOrder(UUID orderId) { return payments.findByOrderId(orderId).orElse(null); }
+    public void assertOrderAccess(UUID actorId, UUID orderId) {
+        var o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
+        if (o.getCustomerId().equals(actorId)) return;
+        throw new ApiException(com.inko.common.error.ErrorCode.FORBIDDEN, "Not your order");
+    }
+    public void assertOrderAccess(com.inko.identity.security.AppUserDetailsService.InkoPrincipal p, UUID orderId) {
+        var o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
+        if (o.getCustomerId().equals(p.userId())) return;
+        boolean isShop = p.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SHOPKEEPER") || a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        if (isShop) return;
+        throw new ApiException(com.inko.common.error.ErrorCode.FORBIDDEN, "Not authorized");
+    }
 }

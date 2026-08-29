@@ -59,6 +59,8 @@ public class QrController {
 
     @PostMapping("/qr/{id}/regenerate")
     public QrCode regenerate(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID id) {
+        var existing = qrCodes.findById(id).orElseThrow(() -> ApiException.notFound("QR not found"));
+        requireShopManager(p, existing.getShopId());
         return svc.regenerate(id, p == null ? null : p.userId());
     }
 
@@ -111,6 +113,6 @@ public class QrController {
     @GetMapping("/admin/qr")
     public List<QrCode> adminList(@RequestParam(required = false) UUID shopId) {
         if (shopId != null) return svc.forShop(shopId);
-        return svc.forShop(shopId);
+        return qrCodes.findAll();
     }
 }

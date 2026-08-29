@@ -31,14 +31,15 @@ export default function History() {
   })
 
   async function printAgain(id: string) {
-    // Real reprint: pull original items and jump straight into configure with them preselected
     try {
       const r = await api.get(`/orders/${id}`)
       const o = r.data?.order ?? r.data
       const items = r.data?.items ?? []
-      const docs = items.map((it: any, i: number) => ({ id: it.documentId, fileName: `Reprint ${i + 1}`, pages: it.pageCount ?? 1 }))
+      const shopId = o.shopId ?? o.shop_id
+      const docs = items.map((it: any, i: number) => ({ id: it.documentId, fileName: `Reprint ${i + 1}`, pages: it.pageCount ?? 1, pageSelection: it.pageCount ? String(it.pageCount) : 'ALL', copies: it.copies ?? 1, documentId: it.documentId }))
       if (!docs.length || !docs[0].id) { window.location.href = `/order/${id}`; return }
-      nav('/configure?reprint=' + id, { state: { reprint: true, documents: docs } })
+      const qs = shopId ? `?shopId=${shopId}&reprint=${id}` : `?reprint=${id}`
+      nav('/configure' + qs, { state: { reprint: true, documents: docs, shopId, originalItems: items, originalOrder: o } })
       void o
     } catch { window.location.href = `/order/${id}` }
   }

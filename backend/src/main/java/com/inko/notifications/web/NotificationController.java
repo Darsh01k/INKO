@@ -30,8 +30,9 @@ public class NotificationController {
     }
 
     @PostMapping("/{id}/read")
-    public Notification read(@PathVariable UUID id) {
+    public Notification read(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID id) {
         Notification n = repo.findById(id).orElseThrow(() -> com.inko.common.error.ApiException.notFound("Notification not found"));
+        if (!n.getRecipientId().equals(p.userId())) throw new com.inko.common.error.ApiException(com.inko.common.error.ErrorCode.FORBIDDEN, "Not your notification");
         n.setRead(true); n.setReadAt(Instant.now());
         return repo.save(n);
     }

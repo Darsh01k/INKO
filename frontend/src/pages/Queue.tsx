@@ -14,6 +14,7 @@ export default function Queue() {
 
   useEffect(() => {
     let es: EventSource | null = null
+    let poll: ReturnType<typeof setInterval> | null = null
     async function load() {
       try {
         const r = await api.get(`/shops/${shopId}/queue`)
@@ -23,15 +24,18 @@ export default function Queue() {
         }
       } catch {}
     }
+    function startPoll(){ if(poll) clearInterval(poll); poll=setInterval(load, 2500) }
+    function stopPoll(){ if(poll){ clearInterval(poll); poll=null } }
     load()
-    const interval = setInterval(load, 5000)
+    startPoll()
     try {
       es = new EventSource(`/api/shops/${shopId}/queue/stream`)
-      es.onopen = () => setLive(true)
-      es.onerror = () => setLive(false)
-      es.onmessage = load
+      es.onopen = () => { setLive(true); stopPoll() }
+      es.onerror = () => { setLive(false); startPoll() }
+      es.addEventListener('token', load)
+      es.addEventListener('connected', ()=>{ setLive(true); stopPoll() })
     } catch { setLive(false) }
-    return () => { clearInterval(interval); es?.close() }
+    return () => { if(poll) clearInterval(poll); es?.close() }
   }, [shopId, orderId])
 
   const waiting = tokens.filter(t=> ['WAITING','QUEUED','PENDING'].includes(String(t.status).toUpperCase()))

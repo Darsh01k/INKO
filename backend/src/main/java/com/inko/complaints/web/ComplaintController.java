@@ -19,15 +19,18 @@ public class ComplaintController {
 
     private final ComplaintRepository repo;
     private final NotificationService notifier;
+    private final com.inko.common.security.RateLimitService rateLimit;
 
-    public ComplaintController(ComplaintRepository repo, NotificationService notifier) {
+    public ComplaintController(ComplaintRepository repo, NotificationService notifier, com.inko.common.security.RateLimitService rateLimit) {
         this.repo = repo;
         this.notifier = notifier;
+        this.rateLimit = rateLimit;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Complaint create(@AuthenticationPrincipal InkoPrincipal p, @RequestBody Map<String,String> body) {
+    public Complaint create(@AuthenticationPrincipal InkoPrincipal p, @RequestBody Map<String,String> body, jakarta.servlet.http.HttpServletRequest req) {
+        rateLimit.checkIp(req.getRemoteAddr(), "complaint");
         Complaint c = new Complaint();
         c.setComplaintNumber("CMP-" + System.currentTimeMillis());
         c.setCustomerId(p.userId());
@@ -46,8 +49,11 @@ public class ComplaintController {
     }
 
     @GetMapping("/{id}")
-    public Complaint get(@PathVariable UUID id) {
-        return repo.findById(id).orElseThrow(() -> com.inko.common.error.ApiException.notFound("Complaint not found"));
+    public Complaint get(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID id) {
+        Complaint c = repo.findById(id).orElseThrow(() -> com.inko.common.error.ApiException.notFound("Complaint not found"));
+        boolean isAdmin = p.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        if (!isAdmin && !c.getCustomerId().equals(p.userId())) throw ApiException.forbidden("Not your complaint");
+        return c;
     }
 
     @PatchMapping("/{id}")
@@ -57,7 +63,12 @@ public class ComplaintController {
             throw ApiException.forbidden("Only platform admins can update complaints");
         }
         Complaint c = repo.findById(id).orElseThrow(() -> ApiException.notFound("Complaint not found"));
-        if (body.containsKey("status")) c.setStatus(body.get("status"));
+        if (body.containsKey("status")) {
+            String ns = body.get("status");
+            java.util.Set<String> valid = java.util.Set.of("OPEN","ASSIGNED","INVESTIGATING","RESOLVED","REJECTED","ESCALATED");
+            if (!valid.contains(ns)) throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED, "Invalid complaint status");
+            c.setStatus(ns);
+        }
         if (body.containsKey("resolution")) c.setResolution(body.get("resolution"));
         if (body.containsKey("assignedTo")) c.setAssignedTo(UUID.fromString(body.get("assignedTo")));
         Complaint saved = repo.save(c);

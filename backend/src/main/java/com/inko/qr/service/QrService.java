@@ -50,7 +50,7 @@ public class QrService {
     @Transactional(readOnly = true)
     public QrCode resolve(String codeValue) {
         QrCode q = codes.findByCodeValue(codeValue).orElseThrow(() -> ApiException.notFound("QR not found"));
-        if ("EXPIRED".equals(q.getStatus()) || "INACTIVE".equals(q.getStatus())) throw ApiException.notFound("QR inactive");
+        if ("EXPIRED".equals(q.getStatus()) || "INACTIVE".equals(q.getStatus()) || "REPLACED".equals(q.getStatus())) throw ApiException.notFound("QR inactive");
         return q;
     }
 

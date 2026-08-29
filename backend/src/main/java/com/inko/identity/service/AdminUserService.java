@@ -59,8 +59,12 @@ public class AdminUserService {
             throw new ApiException(com.inko.common.error.ErrorCode.VALIDATION_FAILED,
                     "You cannot change the status of your own account");
         }
+        User acting = users.findById(actingAdminId).orElseThrow(() -> ApiException.notFound("Acting user not found"));
+        boolean actingSuper = acting.getRoles().stream().anyMatch(r -> r.getName() == RoleName.SUPER_ADMIN);
         User user = users.findById(targetUserId)
                 .orElseThrow(() -> ApiException.notFound("User not found"));
+        boolean targetSuper = user.getRoles().stream().anyMatch(r -> r.getName() == RoleName.SUPER_ADMIN);
+        if (targetSuper && !actingSuper) throw new ApiException(ErrorCode.FORBIDDEN, "Only SUPER_ADMIN can change SUPER_ADMIN status");
         user.setStatus(request.status());
         users.save(user);
         audit.record(actingAdminId, "ADMIN", "USER_STATUS_CHANGED", "USER", targetUserId, "{\"status\":\"" + request.status() + "\"}");
@@ -76,8 +80,13 @@ public class AdminUserService {
         if (roleNames == null || roleNames.isEmpty()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "At least one role is required");
         }
+        User acting = users.findById(actingAdminId).orElseThrow(() -> ApiException.notFound("Acting user not found"));
+        boolean actingSuper = acting.getRoles().stream().anyMatch(r -> r.getName() == RoleName.SUPER_ADMIN);
+        if (roleNames.contains("SUPER_ADMIN") && !actingSuper) throw new ApiException(ErrorCode.FORBIDDEN, "Only SUPER_ADMIN can grant SUPER_ADMIN");
         User user = users.findById(targetUserId)
                 .orElseThrow(() -> ApiException.notFound("User not found"));
+        boolean targetSuper = user.getRoles().stream().anyMatch(r -> r.getName() == RoleName.SUPER_ADMIN);
+        if (targetSuper && !actingSuper) throw new ApiException(ErrorCode.FORBIDDEN, "Only SUPER_ADMIN can modify SUPER_ADMIN");
         var next = roleNames.stream().distinct().map(name -> {
             try { return RoleName.valueOf(name); }
             catch (IllegalArgumentException e) { throw new ApiException(ErrorCode.VALIDATION_FAILED, "Unknown role: " + name); }

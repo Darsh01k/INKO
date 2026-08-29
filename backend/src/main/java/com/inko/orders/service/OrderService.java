@@ -8,6 +8,7 @@ import com.inko.orders.domain.*;
 import com.inko.orders.repo.*;
 import com.inko.pricing.domain.*;
 import com.inko.pricing.service.*;
+import com.inko.shops.repo.ShopRepository;
 import com.inko.tokens.domain.Token;
 import com.inko.tokens.service.TokenService;
 import jakarta.transaction.Transactional;
@@ -28,13 +29,20 @@ public class OrderService {
     private final PricingService pricing;
     private final TokenService tokens;
     private final NotificationService notifier;
+    private final ShopRepository shops;
+    private final com.inko.pricing.repo.CouponRepository coupons;
+    private final com.inko.pricing.repo.CouponRedemptionRepository redemptions;
+    private final com.inko.pricing.repo.DiscountRuleRepository discountRules;
 
-    public OrderService(OrderRepository orders, OrderItemRepository items, PrintConfigurationRepository configs, DocumentRepository docs, PricingService pricing, TokenService tokens, NotificationService notifier) {
-        this.orders = orders; this.items = items; this.configs = configs; this.docs = docs; this.pricing = pricing; this.tokens = tokens; this.notifier = notifier;
+    public OrderService(OrderRepository orders, OrderItemRepository items, PrintConfigurationRepository configs, DocumentRepository docs, PricingService pricing, TokenService tokens, NotificationService notifier, ShopRepository shops, com.inko.pricing.repo.CouponRepository coupons, com.inko.pricing.repo.CouponRedemptionRepository redemptions, com.inko.pricing.repo.DiscountRuleRepository discountRules) {
+        this.orders = orders; this.items = items; this.configs = configs; this.docs = docs; this.pricing = pricing; this.tokens = tokens; this.notifier = notifier; this.shops = shops; this.coupons = coupons; this.redemptions = redemptions; this.discountRules = discountRules;
     }
 
     @Transactional
     public Order create(UUID customerId, UUID shopId, List<ItemSpec> specs, String couponCode) {
+        if (shopId == null) throw new ApiException(ErrorCode.VALIDATION_FAILED, "shopId is required");
+        var shop = shops.findById(shopId).orElseThrow(() -> ApiException.notFound("Shop not found"));
+        if (shop.getStatus() != com.inko.shops.domain.ShopStatus.OPEN) throw new ApiException(ErrorCode.VALIDATION_FAILED, "Shop is not open");
         if (specs == null || specs.isEmpty()) throw new ApiException(ErrorCode.VALIDATION_FAILED, "No items");
         int totalPages = 0;
         BigDecimal subtotal = BigDecimal.ZERO;
@@ -42,11 +50,14 @@ public class OrderService {
         BigDecimal tax = BigDecimal.ZERO;
         BigDecimal finalAmount = BigDecimal.ZERO;
         String snapshot = "{}";
+        BigDecimal lastUnit = BigDecimal.ZERO;
+        int lastSheets = 0;
+        int lastPrinted = 0;
 
         for (ItemSpec s : specs) {
             var doc = docs.findById(s.documentId()).orElseThrow(() -> ApiException.notFound("Document not found"));
             if (!doc.getCustomerId().equals(customerId)) throw new ApiException(ErrorCode.FORBIDDEN, "Not your document");
-            int selPages = parsePages(s.pageSelection(), doc.getPageCount() == null ? 1 : doc.getPageCount());
+            int selPages = PrintCalc.parsePageCount(s.pageSelection(), doc.getPageCount() == null ? 1 : doc.getPageCount());
             PricingRequest pr = new PricingRequest(shopId, PaperSize.valueOf(s.paperSize()), ColorMode.valueOf(s.colorMode()), SidesMode.valueOf(s.sidesMode()), selPages, s.copies(), false, couponCode, customerId);
             var bd = pricing.quote(pr);
             totalPages += bd.printedPages();
@@ -54,7 +65,8 @@ public class OrderService {
             discount = discount.add(bd.discountAmount());
             tax = tax.add(bd.taxAmount());
             finalAmount = finalAmount.add(bd.finalAmount());
-            snapshot = "{\"unit\":" + bd.unitPricePerPage() + ",\"shop\":\"" + shopId + "\"}";
+            lastUnit = bd.unitPricePerPage(); lastSheets = bd.sheets(); lastPrinted = bd.printedPages();
+            snapshot = "{\"unit\":" + bd.unitPricePerPage() + ",\"shop\":\"" + shopId + "\",\"sheets\":" + bd.sheets() + ",\"printedPages\":" + bd.printedPages() + ",\"selectedPages\":" + bd.pages() + ",\"copies\":" + bd.copies() + "}";
         }
 
         Order o = new Order();
@@ -64,22 +76,53 @@ public class OrderService {
         o.setTotalPages(totalPages); o.setCopies(specs.get(0).copies());
         o.setSubtotal(subtotal); o.setDiscountAmount(discount); o.setTaxAmount(tax); o.setFinalAmount(finalAmount);
         o.setPricingSnapshot(snapshot);
+        if (couponCode != null && !couponCode.isBlank()) {
+            try {
+                var coupon = coupons.findByCodeIgnoreCase(couponCode.trim().toUpperCase()).orElse(null);
+                if (coupon != null) o.setCouponId(coupon.getId());
+            } catch(Exception ignored) {}
+        }
         o = orders.save(o);
+        if (couponCode != null && !couponCode.isBlank()) {
+            try {
+                var coupon = coupons.findByCodeIgnoreCase(couponCode.trim().toUpperCase()).orElse(null);
+                if (coupon != null) {
+                    var dr = discountRules.findById(coupon.getDiscountRuleId()).orElse(null);
+                    if (dr != null) {
+                        synchronized (coupon.getId().toString().intern()) {
+                            var fresh = coupons.findById(coupon.getId()).orElse(null);
+                            var freshDr = dr.getId() == null ? null : discountRules.findById(dr.getId()).orElse(dr);
+                            if (freshDr != null && (freshDr.getUsageLimitTotal() == null || freshDr.getTimesUsed() < freshDr.getUsageLimitTotal())) {
+                                var redemption = new com.inko.pricing.domain.CouponRedemption();
+                                redemption.setCouponId(coupon.getId());
+                                redemption.setUserId(customerId);
+                                redemption.setOrderId(o.getId());
+                                redemptions.save(redemption);
+                                freshDr.setTimesUsed(freshDr.getTimesUsed() + 1);
+                                discountRules.save(freshDr);
+                            }
+                        }
+                    }
+                }
+            } catch(Exception ignored) {}
+        }
         notifier.create(customerId, "ORDER_CREATED", "Order " + o.getOrderNumber() + " placed",
                 "We received your print job — complete payment to get your queue token.", "/order/" + o.getId());
 
         for (ItemSpec s : specs) {
             var doc = docs.findById(s.documentId()).orElseThrow();
-            int selPages = parsePages(s.pageSelection(), doc.getPageCount() == null ? 1 : doc.getPageCount());
+            int selPages = PrintCalc.parsePageCount(s.pageSelection(), doc.getPageCount() == null ? 1 : doc.getPageCount());
             PrintConfiguration pc = new PrintConfiguration();
             pc.setColorMode(s.colorMode()); pc.setSidesMode(s.sidesMode()); pc.setPaperSize(s.paperSize());
             pc.setOrientation(s.orientation() == null ? "AUTO" : s.orientation());
             pc.setPageSelection(s.pageSelection() == null ? "ALL" : s.pageSelection());
             pc.setSelectedPageCount(selPages); pc.setCopies(s.copies());
             pc = configs.save(pc);
+            PricingRequest pr2 = new PricingRequest(shopId, PaperSize.valueOf(s.paperSize()), ColorMode.valueOf(s.colorMode()), SidesMode.valueOf(s.sidesMode()), selPages, s.copies(), false, couponCode, customerId);
+            var bd2 = pricing.quote(pr2);
             OrderItem oi = new OrderItem();
             oi.setOrderId(o.getId()); oi.setDocumentId(s.documentId()); oi.setConfigurationId(pc.getId());
-            oi.setPageCount(selPages); oi.setCopies(s.copies()); oi.setItemSubtotal(finalAmount);
+            oi.setPageCount(selPages); oi.setCopies(s.copies()); oi.setItemSubtotal(bd2.finalAmount());
             items.save(oi);
         }
         return o;
@@ -89,11 +132,13 @@ public class OrderService {
     public Order transition(UUID orderId, OrderStatus target, UUID actorId) {
         Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
         OrderStatus cur = o.statusEnum();
+        if (cur == target) return o;
         if (!cur.canTransitionTo(target)) throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid order transition " + cur + " -> " + target);
         o.setStatus(target.name());
         if (target == OrderStatus.CANCELLED) { o.setCancelledAt(Instant.now()); o.setCancellationReason("Cancelled"); }
         o = orders.save(o);
         if (target == OrderStatus.PAID || target == OrderStatus.COD_SELECTED) {
+            if (tokens.byOrder(o.getId()) != null) return o;
             String payTitle = target == OrderStatus.PAID ? "Payment done" : "COD confirmed";
             String payBody = target == OrderStatus.PAID ? "Payment for " + o.getOrderNumber() + " verified — generating your token" : "Order " + o.getOrderNumber() + " confirmed — pay at shop counter";
             notifier.create(o.getCustomerId(), "PAYMENT_" + target.name(), payTitle, payBody, "/order/" + o.getId());
@@ -113,16 +158,7 @@ public class OrderService {
     public Order get(UUID id) { return orders.findById(id).orElseThrow(() -> ApiException.notFound("Order not found")); }
 
     private int parsePages(String sel, int total) {
-        if (sel == null || sel.equalsIgnoreCase("ALL") || sel.isBlank()) return total;
-        int count = 0;
-        for (String part : sel.split(",")) {
-            part = part.trim();
-            if (part.contains("-")) {
-                String[] b = part.split("-");
-                count += Integer.parseInt(b[1].trim()) - Integer.parseInt(b[0].trim()) + 1;
-            } else count += 1;
-        }
-        return Math.min(count, total);
+        return PrintCalc.parsePageCount(sel, total);
     }
 
     public record ItemSpec(UUID documentId, String paperSize, String colorMode, String sidesMode, String orientation, String pageSelection, int copies) {}

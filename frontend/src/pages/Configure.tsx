@@ -26,7 +26,12 @@ export default function Configure() {
   const [loading, setLoading] = useState(false)
 
   const isLockedShop = !!qrShopId
-  useEffect(() => { api.get('/shops').then(r => { setShops(r.data); if (!qrShopId && r.data[0]) setShopId(r.data[0].id); if (qrShopId) setShopId(qrShopId) }).catch(() => {}) }, [qrShopId])
+  useEffect(() => {
+    if (isReprint && Array.isArray((raw as any)?.documents) && (raw as any).documents[0]?.copies) setCopies((raw as any).documents[0].copies)
+    if (isReprint && (raw as any)?.documents?.[0]?.pageSelection) setPages((raw as any).documents[0].pageSelection)
+    if (isReprint && (raw as any)?.shopId) setShopId((raw as any).shopId)
+  }, [])
+  useEffect(() => { api.get('/shops').then(r => { setShops(r.data); if (!qrShopId && !isReprint && r.data[0]) setShopId(r.data[0].id); if (qrShopId) setShopId(qrShopId); if (isReprint && (raw as any)?.shopId) setShopId((raw as any).shopId) }).catch(() => {}) }, [qrShopId])
 
   const selectedShop = shops.find(s=>s.id===shopId)
 

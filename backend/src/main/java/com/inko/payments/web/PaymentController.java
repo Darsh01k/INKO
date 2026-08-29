@@ -23,20 +23,21 @@ public class PaymentController {
 
     @PostMapping("/orders/{orderId}/payment")
     @ResponseStatus(HttpStatus.CREATED)
-    public Payment initiate(@PathVariable UUID orderId, @RequestBody Map<String,String> body) {
-        return svc.initiate(orderId, body.get("method"), body.get("idempotencyKey"));
+    public Payment initiate(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID orderId, @RequestBody Map<String,String> body) {
+        return svc.initiate(p == null ? null : p.userId(), orderId, body.get("method"), body.get("idempotencyKey"));
     }
 
     @PostMapping("/payments/{id}/verify")
-    public Payment verify(@PathVariable UUID id, @RequestBody(required = false) Map<String,String> payload) {
-        return svc.verify(id, payload == null ? Map.of() : payload);
+    public Payment verify(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID id, @RequestBody(required = false) Map<String,String> payload) {
+        return svc.verify(p == null ? null : p.userId(), id, payload == null ? Map.of() : payload);
     }
 
     @GetMapping("/orders/{orderId}/payment")
-    public Payment byOrder(@PathVariable UUID orderId) {
-        var p = svc.byOrder(orderId);
-        if (p == null) throw com.inko.common.error.ApiException.notFound("Payment not found");
-        return p;
+    public Payment byOrder(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID orderId) {
+        var pay = svc.byOrder(orderId);
+        if (pay == null) throw com.inko.common.error.ApiException.notFound("Payment not found");
+        if (p != null) svc.assertOrderAccess(p, orderId);
+        return pay;
     }
 
     @PostMapping("/orders/{orderId}/refund")

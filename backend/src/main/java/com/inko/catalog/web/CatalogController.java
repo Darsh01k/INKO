@@ -38,7 +38,8 @@ public class CatalogController {
     // ---------- Printers ----------
 
     @GetMapping("/printers")
-    public List<Printer> listPrinters(@PathVariable UUID shopId) {
+    public List<Printer> listPrinters(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID shopId) {
+        requireAccess(p, shopId);
         return printers.findByShopIdOrderByNameAsc(shopId);
     }
 
@@ -95,7 +96,8 @@ public class CatalogController {
     // ---------- Paper inventory ----------
 
     @GetMapping("/inventory")
-    public List<ShopPaperInventory> listInventory(@PathVariable UUID shopId) {
+    public List<ShopPaperInventory> listInventory(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID shopId) {
+        requireAccess(p, shopId);
         return inventory.findByShopIdOrderByPaperSizeAscGsmAsc(shopId);
     }
 

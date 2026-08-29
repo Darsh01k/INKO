@@ -209,6 +209,9 @@ export default function OrderDetail() {
           <Card className="p-5">
             <h3 className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4"/> Payment</h3>
             <p className="mt-1 text-xs text-slate-500">Choose a method — mock UPI is instant in dev, COD pays at shop.</p>
+            {(['PAID','COD_SELECTED','TOKEN_GENERATED','QUEUED','ACCEPTED','PRINTING','COMPLETED','REFUNDED','FAILED'].includes(String(order.status).toUpperCase())) ? (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">Payment {order.status === 'COD_SELECTED' ? 'confirmed (COD — pay at counter)' : order.status === 'PAID' ? 'verified' : 'already processed'} — track your queue token below.</div>
+            ) : (
             <div className="mt-4 grid gap-2">
               <Button onClick={()=>pay('MOCK_UPI')} loading={payBusy==='MOCK_UPI'} className="w-full justify-between">
                 <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4"/> Pay with Mock UPI</span>
@@ -218,6 +221,7 @@ export default function OrderDetail() {
                 <span>Pay at shop (COD)</span> <span className="text-xs text-slate-500">No online charge</span>
               </Button>
             </div>
+            )}
             {payMsg && <div className="mt-3"><Alert tone={payMsg.toLowerCase().includes('success') || payMsg.toLowerCase().includes('verified') || payMsg.toLowerCase().includes('completed') ? 'success' : payMsg.toLowerCase().includes('error') ? 'error' : 'info'}>{payMsg}</Alert></div>}
             {refunds.length > 0 && (
               <div className="mt-4 space-y-2">

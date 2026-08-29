@@ -41,7 +41,21 @@ export default function QueueManage() {
       setTokens(next); setLive(true)
     } catch (e: any) { setErr(apiErrorMessage(e)); setLive(false) }
   }
-  useEffect(() => { if (!shopId) return; load(); const id = setInterval(load, 2500); return () => clearInterval(id) }, [shopId])
+  useEffect(() => {
+    if (!shopId) return
+    let es: EventSource | null = null
+    let poll: ReturnType<typeof setInterval> | null = null
+    function startPoll(){ if(poll) clearInterval(poll); poll=setInterval(load, 2500) }
+    function stopPoll(){ if(poll){ clearInterval(poll); poll=null } }
+    startPoll()
+    try {
+      es = new EventSource(`/api/shops/${shopId}/queue/stream`)
+      es.onopen = () => { setLive(true); stopPoll() }
+      es.onerror = () => { setLive(false); startPoll() }
+      es.addEventListener('token', ()=>load())
+    } catch { setLive(false) }
+    return () => { if(poll) clearInterval(poll); es?.close() }
+  }, [shopId])
 
   async function createShop() {
     const name = newShopName.trim()

@@ -20,8 +20,9 @@ public class OrderController {
 
     private final OrderService svc;
     private final OrderItemRepository items;
+    private final com.inko.shops.repo.ShopRepository shops;
 
-    public OrderController(OrderService svc, OrderItemRepository items) { this.svc = svc; this.items = items; }
+    public OrderController(OrderService svc, OrderItemRepository items, com.inko.shops.repo.ShopRepository shops) { this.svc = svc; this.items = items; this.shops = shops; }
 
     public record CreateOrderRequest(@NotNull UUID shopId, @NotEmpty List<Item> items, String couponCode) {
         public record Item(@NotNull UUID documentId, @NotNull String paperSize, @NotNull String colorMode, @NotNull String sidesMode, String orientation, String pageSelection, int copies) {}
@@ -51,9 +52,13 @@ public class OrderController {
     }
 
     @GetMapping("/shop/{shopId}")
-    public List<Order> shopOrders(@PathVariable UUID shopId) { return svc.forShop(shopId); }
+    public List<Order> shopOrders(@AuthenticationPrincipal InkoPrincipal p, @PathVariable UUID shopId) {
+        if (!hasShopAccess(p, shopId)) throw com.inko.common.error.ApiException.forbidden("Not authorized for this shop");
+        return svc.forShop(shopId);
+    }
 
     private boolean hasShopAccess(InkoPrincipal p, UUID shopId) {
-        return p.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN") || a.getAuthority().equals("ROLE_SHOPKEEPER"));
+        if (p.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"))) return true;
+        return p.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SHOPKEEPER")) && shops.existsByOwnerUserIdAndId(p.userId(), shopId);
     }
 }
