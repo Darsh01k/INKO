@@ -149,9 +149,9 @@ public class ShopController {
         if (body.containsKey("email")) shop.setEmail(trimOrNull(body.get("email"), 180));
         if (body.containsKey("latitude")) shop.setLatitude(parseDouble(body.get("latitude")));
         if (body.containsKey("longitude")) shop.setLongitude(parseDouble(body.get("longitude")));
-        if (shop.getLatitude() != null && (shop.getLatitude() < -90 || shop.getLatitude() > 90))
+        if (shop.getLatitude() != null && (shop.getLatitude().compareTo(java.math.BigDecimal.valueOf(-90)) < 0 || shop.getLatitude().compareTo(java.math.BigDecimal.valueOf(90)) > 0))
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid latitude");
-        if (shop.getLongitude() != null && (shop.getLongitude() < -180 || shop.getLongitude() > 180))
+        if (shop.getLongitude() != null && (shop.getLongitude().compareTo(java.math.BigDecimal.valueOf(-180)) < 0 || shop.getLongitude().compareTo(java.math.BigDecimal.valueOf(180)) > 0))
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "Invalid longitude");
         boolean hasAddress = shop.getAddressLine1() != null && !shop.getAddressLine1().isBlank();
         boolean hasCity = shop.getCity() != null && !shop.getCity().isBlank();
@@ -173,9 +173,11 @@ public class ShopController {
     }
 
     private static ShopSummaryDto toDto(Shop s) {
+        Double lat = s.getLatitude() == null ? null : s.getLatitude().doubleValue();
+        Double lng = s.getLongitude() == null ? null : s.getLongitude().doubleValue();
         return new ShopSummaryDto(s.getId(), s.getName(), s.getCity(), s.getStatus(),
                 s.isSupportsColor(), s.getAddressLine1(), s.getAddressLine2(), s.getState(), s.getPincode(),
-                s.getLatitude(), s.getLongitude(), s.getPhone(), s.getEmail());
+                lat, lng, s.getPhone(), s.getEmail());
     }
 
     private static void requireKeeper(InkoPrincipal principal) {

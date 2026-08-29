@@ -51,6 +51,9 @@ public class Token {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    @Version
+    private long version;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -40,10 +40,10 @@ public class Shop {
     private String pincode;
 
     @Column(columnDefinition = "NUMERIC(9,6)")
-    private Double latitude;
+    private java.math.BigDecimal latitude;
 
     @Column(columnDefinition = "NUMERIC(9,6)")
-    private Double longitude;
+    private java.math.BigDecimal longitude;
 
     @Column(length = 20)
     private String phone;
@@ -81,10 +81,12 @@ public class Shop {
     public void setState(String v) { this.state = v; }
     public String getPincode() { return pincode; }
     public void setPincode(String v) { this.pincode = v; }
-    public Double getLatitude() { return latitude; }
-    public void setLatitude(Double v) { this.latitude = v; }
-    public Double getLongitude() { return longitude; }
-    public void setLongitude(Double v) { this.longitude = v; }
+    public java.math.BigDecimal getLatitude() { return latitude; }
+    public void setLatitude(java.math.BigDecimal v) { this.latitude = v; }
+    public java.math.BigDecimal getLongitude() { return longitude; }
+    public void setLongitude(java.math.BigDecimal v) { this.longitude = v; }
+    public void setLatitude(Double v) { this.latitude = v == null ? null : java.math.BigDecimal.valueOf(v); }
+    public void setLongitude(Double v) { this.longitude = v == null ? null : java.math.BigDecimal.valueOf(v); }
     public String getPhone() { return phone; }
     public void setPhone(String v) { this.phone = v; }
     public String getEmail() { return email; }
