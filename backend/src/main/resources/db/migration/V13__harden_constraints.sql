@@ -18,9 +18,22 @@ DO $$ BEGIN
     CREATE UNIQUE INDEX uq_qr_active_per_shop ON qr_codes (shop_id) WHERE status = 'ACTIVE';
   END IF;
 END $$;
--- 5. Legacy status migration DONE->COMPLETED PROCESSING->PRINTING
+-- 5. Legacy status migration DONE->COMPLETED PROCESSING->PRINTING (must relax CHECK first)
+DO $$ BEGIN
+  ALTER TABLE queue_entries DROP CONSTRAINT IF EXISTS queue_entries_status_check;
+EXCEPTION WHEN undefined_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE queue_entries DROP CONSTRAINT IF EXISTS queue_entries_status_chk;
+EXCEPTION WHEN undefined_object THEN NULL;
+END $$;
 UPDATE queue_entries SET status = 'COMPLETED' WHERE status = 'DONE';
 UPDATE queue_entries SET status = 'PRINTING' WHERE status = 'PROCESSING';
 UPDATE queue_entries SET status = 'FAILED' WHERE status = 'REMOVED' AND token_id IN (SELECT id FROM tokens WHERE status = 'FAILED');
+UPDATE queue_entries SET status = 'CANCELLED' WHERE status = 'REMOVED' AND status = 'REMOVED';
+DO $$ BEGIN
+  ALTER TABLE queue_entries ADD CONSTRAINT queue_entries_status_check CHECK (status IN ('WAITING','CALLED','PRINTING','COMPLETED','FAILED','CANCELLED'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 -- 6. Clamp audit size is app-level; no DB change
 -- 7. Ensure order_number uniqueness already via V7
